@@ -95,7 +95,7 @@ export default function Home() {
          <div className="flex items-center gap-4">
             {/* Feedback Button */}
             <a 
-              href="mailto:your-email@gmail.com?subject=Code Architect Feedback"
+              href="mailto:evyatar157@gmail.com?subject=Code Architect Feedback"
               className="hidden md:block text-sm text-slate-500 hover:text-blue-600 transition"
             >
               Give Feedback
