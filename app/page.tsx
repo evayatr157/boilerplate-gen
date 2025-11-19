@@ -104,9 +104,17 @@ export default function Home() {
               </SignInButton>
             </SignedOut>
 
-            {/* אם המשתמש מחובר - הצג תמונת פרופיל */}
+            {/* אם המשתמש מחובר - הצג כפתור לדשבורד ותמונת פרופיל */}
             <SignedIn>
-              <UserButton afterSignOutUrl="/" />
+              <div className="flex items-center gap-4">
+                <a 
+                  href="/dashboard" 
+                  className="text-sm font-bold text-slate-600 hover:text-blue-600 transition"
+                >
+                  My Projects
+                </a>
+                <UserButton afterSignOutUrl="/" />
+              </div>
             </SignedIn>
          </div>
       </nav>
