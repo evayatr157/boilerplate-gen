@@ -10,6 +10,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@clerk/nextjs": "^6.35.2",
     "@prisma/client": "5.22.0",
     "@supabase/supabase-js": "^2.83.0",
     "jszip": "^3.10.1",

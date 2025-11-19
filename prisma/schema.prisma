@@ -12,10 +12,13 @@ datasource db {
 
 model Template {
   id        String   @id @default(cuid())
-  prompt    String   @unique
+  prompt    String   // מחקנו את @unique! עכשיו מותר כפילויות
   s3Url     String
   createdAt DateTime @default(now())
   downloads Int      @default(0)
   
-  @@index([prompt])
+  userId    String?  // המזהה של Clerk
+  
+  @@index([prompt]) // חיפוש מהיר גלובלי
+  @@index([userId]) // שליפה מהירה ל-"פרויקטים שלי"
 }

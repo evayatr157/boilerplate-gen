@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import JSZip from "jszip";
 import { createClient } from "@supabase/supabase-js";
+import { auth } from "@clerk/nextjs/server"; // 1. ייבוא Clerk
 import prisma from "@/lib/prisma";
 
 // הגדרת OpenAI
@@ -17,10 +18,8 @@ const supabase = createClient(
 function parseStructure(folder: JSZip, structure: any) {
   for (const [key, value] of Object.entries(structure)) {
     if (typeof value === "string") {
-      // אם הערך הוא מחרוזת -> צור קובץ עם התוכן
       folder.file(key, value);
     } else {
-      // אם הערך הוא אובייקט -> צור תיקייה וכנס פנימה
       const newFolder = folder.folder(key);
       if (newFolder) parseStructure(newFolder, value);
     }
@@ -29,27 +28,51 @@ function parseStructure(folder: JSZip, structure: any) {
 
 export async function POST(req: Request) {
   try {
+    // 2. זיהוי המשתמש (יכול להיות null אם הוא לא מחובר)
+    const { userId } = await auth();
+    
     const { prompt } = await req.json();
     const cleanPrompt = prompt.trim().toLowerCase(); 
 
     if (!cleanPrompt) return NextResponse.json({ error: "Prompt required" }, { status: 400 });
 
-    // --- שלב 1: בדיקה ב-Cache ---
-    const existingTemplate = await prisma.template.findUnique({
-      where: { prompt: cleanPrompt },
+    // --- שלב 1: חיפוש גלובלי ב-Cache ---
+    // אנחנו מחפשים אם *מישהו* כבר יצר את הפרויקט הזה בעבר
+    const globalTemplate = await prisma.template.findFirst({
+      where: { 
+        prompt: cleanPrompt,
+        s3Url: { not: "" } // מוודאים שיש לינק תקין
+      },
+      orderBy: { createdAt: 'desc' } // לוקחים את הגרסה הכי חדשה
     });
 
-    if (existingTemplate) {
-      console.log("⚡ Cache HIT! Returning existing URL.");
-      // עדכון מונה הורדות
+    // --- תרחיש א': נמצא ב-Cache (Cache HIT) ---
+    if (globalTemplate) {
+      console.log("⚡ Cache HIT! Serving existing URL...");
+      
+      // אם המשתמש מחובר, אנחנו שומרים לו רשומה אישית בהיסטוריה
+      // אבל משתמשים בלינק הישן (חוסכים כסף על AI ואחסון)
+      if (userId) {
+        await prisma.template.create({
+          data: {
+            prompt: cleanPrompt,
+            s3Url: globalTemplate.s3Url, // Reuse the link
+            downloads: 1,
+            userId: userId 
+          }
+        });
+      }
+
+      // עדכון מונה הורדות ברשומה המקורית (בשביל סטטיסטיקות)
       await prisma.template.update({
-        where: { id: existingTemplate.id },
+        where: { id: globalTemplate.id },
         data: { downloads: { increment: 1 } },
       });
-      return NextResponse.json({ url: existingTemplate.s3Url, cached: true });
+
+      return NextResponse.json({ url: globalTemplate.s3Url, cached: true });
     }
 
-    // --- שלב 2: יצירה עם AI (החלק המשופר) ---
+    // --- תרחיש ב': לא נמצא (Cache MISS) - יצירה עם AI ---
     console.log("🤖 Cache MISS. Asking OpenAI for professional boilerplate...");
     
     const completion = await openai.chat.completions.create({
@@ -99,7 +122,7 @@ export async function POST(req: Request) {
     if (!content) throw new Error("AI returned empty content");
 
     const structure = JSON.parse(content);
-    const rootKey = Object.keys(structure)[0]; // usually "project_root"
+    const rootKey = Object.keys(structure)[0];
 
     // --- שלב 3: יצירת ZIP ---
     const zip = new JSZip();
@@ -118,12 +141,13 @@ export async function POST(req: Request) {
       .from("boilerplates")
       .getPublicUrl(fileName);
 
-    // --- שלב 5: שמירה ב-DB ---
+    // --- שלב 5: שמירה ב-DB (עם שיוך למשתמש) ---
     await prisma.template.create({
       data: {
         prompt: cleanPrompt,
         s3Url: publicUrlData.publicUrl,
-        downloads: 1
+        downloads: 1,
+        userId: userId || null // שומרים את ה-ID של המשתמש שיצר את זה
       }
     });
 
