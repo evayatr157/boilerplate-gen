@@ -1,0 +1,21 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Template {
+  id        String   @id @default(cuid())
+  prompt    String   @unique
+  s3Url     String
+  createdAt DateTime @default(now())
+  downloads Int      @default(0)
+  
+  @@index([prompt])
+}
