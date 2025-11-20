@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import JSZip from "jszip";
@@ -29,7 +28,7 @@ function parseStructure(folder: JSZip, structure: any) {
 
 export async function POST(req: Request) {
   try {
-    // 1. זיהוי המשתמש (חובה await בגרסאות חדשות)
+    // 1. זיהוי המשתמש
     const { userId } = await auth();
     
     const { prompt } = await req.json();
@@ -38,7 +37,6 @@ export async function POST(req: Request) {
     if (!cleanPrompt) return NextResponse.json({ error: "Prompt required" }, { status: 400 });
 
     // --- שלב 1: חיפוש גלובלי ב-Cache ---
-    // בודקים אם *מישהו* כבר יצר פרויקט כזה, כדי לחסוך זמן וכסף
     const globalTemplate = await prisma.template.findFirst({
       where: { 
         prompt: cleanPrompt,
@@ -47,12 +45,10 @@ export async function POST(req: Request) {
       orderBy: { createdAt: 'desc' }
     });
 
-    // --- תרחיש א': נמצא ב-Cache ---
+    // --- תרחיש א': נמצא ב-Cache (Cache HIT) ---
     if (globalTemplate) {
       console.log("⚡ Cache HIT! Serving existing URL...");
       
-      // אם המשתמש מחובר, שומרים לו את הפרויקט בהיסטוריה האישית
-      // אבל משתמשים בלינק הקיים (בלי לשלם שוב ל-AI)
       if (userId) {
         await prisma.template.create({
           data: {
@@ -64,7 +60,6 @@ export async function POST(req: Request) {
         });
       }
 
-      // עדכון מונה הורדות כללי
       await prisma.template.update({
         where: { id: globalTemplate.id },
         data: { downloads: { increment: 1 } },
@@ -73,11 +68,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ url: globalTemplate.s3Url, cached: true });
     }
 
-    // --- תרחיש ב': יצירה חדשה (AI) ---
-    console.log("🤖 Cache MISS. Asking OpenAI for Interactive Starter Kit...");
+    // --- תרחיש ב': יצירה חדשה (AI) - כאן השינוי! ---
+    console.log("🤖 Cache MISS. Asking OpenAI (New Model)...");
     
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      // שינוי 1: המודל החדש והזול
+      model: "gpt-5.1-codex-mini", 
+      
+      // שינוי 2: ביטול חשיבה עמוקה לטובת מהירות
+      // @ts-ignore (במקרה שה-SDK עדיין לא עודכן לטיפוס הזה)
+      reasoning_effort: "none",
+
       response_format: { type: "json_object" },
       messages: [
         {
@@ -111,7 +112,6 @@ export async function POST(req: Request) {
             1. \`npm install\`
             2. \`npm run setup\` (Interactive configuration)
             3. \`npm run dev\`
-          - **Configuration Guide:** A short section explaining WHERE to get the required keys (e.g., "Get Stripe keys from dashboard.stripe.com").
           
           ### EXAMPLE JSON STRUCTURE:
           {
@@ -145,7 +145,7 @@ export async function POST(req: Request) {
     parseStructure(zip, structure[rootKey]);
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
 
-    const fileName = `boilerplate-${Date.now()}.zip`;
+    const fileName = `boilerplate-${crypto.randomUUID()}.zip`; // שדרוג אבטחה קטן: UUID במקום Date
     const { error: uploadError } = await supabase.storage
       .from("boilerplates")
       .upload(fileName, zipBuffer, { contentType: "application/zip" });
@@ -166,7 +166,7 @@ export async function POST(req: Request) {
       }
     });
 
-    console.log("✅ New interactive template saved!");
+    console.log("✅ New template saved (Cheap & Fast)!");
     return NextResponse.json({ url: publicUrlData.publicUrl, cached: false });
 
   } catch (error: any) {
