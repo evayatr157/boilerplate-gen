@@ -1,20 +1,21 @@
+
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import JSZip from "jszip";
 import { createClient } from "@supabase/supabase-js";
-import { auth } from "@clerk/nextjs/server"; // 1. ייבוא Clerk
+import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 
 // הגדרת OpenAI
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// הגדרת Supabase
+// הגדרת Supabase Storage
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// פונקציית עזר לרקורסיה על מבנה הקבצים
+// פונקציית עזר ליצירת ה-ZIP
 function parseStructure(folder: JSZip, structure: any) {
   for (const [key, value] of Object.entries(structure)) {
     if (typeof value === "string") {
@@ -28,7 +29,7 @@ function parseStructure(folder: JSZip, structure: any) {
 
 export async function POST(req: Request) {
   try {
-    // 2. זיהוי המשתמש (יכול להיות null אם הוא לא מחובר)
+    // 1. זיהוי המשתמש (חובה await בגרסאות חדשות)
     const { userId } = await auth();
     
     const { prompt } = await req.json();
@@ -37,33 +38,33 @@ export async function POST(req: Request) {
     if (!cleanPrompt) return NextResponse.json({ error: "Prompt required" }, { status: 400 });
 
     // --- שלב 1: חיפוש גלובלי ב-Cache ---
-    // אנחנו מחפשים אם *מישהו* כבר יצר את הפרויקט הזה בעבר
+    // בודקים אם *מישהו* כבר יצר פרויקט כזה, כדי לחסוך זמן וכסף
     const globalTemplate = await prisma.template.findFirst({
       where: { 
         prompt: cleanPrompt,
-        s3Url: { not: "" } // מוודאים שיש לינק תקין
+        s3Url: { not: "" } 
       },
-      orderBy: { createdAt: 'desc' } // לוקחים את הגרסה הכי חדשה
+      orderBy: { createdAt: 'desc' }
     });
 
-    // --- תרחיש א': נמצא ב-Cache (Cache HIT) ---
+    // --- תרחיש א': נמצא ב-Cache ---
     if (globalTemplate) {
       console.log("⚡ Cache HIT! Serving existing URL...");
       
-      // אם המשתמש מחובר, אנחנו שומרים לו רשומה אישית בהיסטוריה
-      // אבל משתמשים בלינק הישן (חוסכים כסף על AI ואחסון)
+      // אם המשתמש מחובר, שומרים לו את הפרויקט בהיסטוריה האישית
+      // אבל משתמשים בלינק הקיים (בלי לשלם שוב ל-AI)
       if (userId) {
         await prisma.template.create({
           data: {
             prompt: cleanPrompt,
-            s3Url: globalTemplate.s3Url, // Reuse the link
+            s3Url: globalTemplate.s3Url,
             downloads: 1,
             userId: userId 
           }
         });
       }
 
-      // עדכון מונה הורדות ברשומה המקורית (בשביל סטטיסטיקות)
+      // עדכון מונה הורדות כללי
       await prisma.template.update({
         where: { id: globalTemplate.id },
         data: { downloads: { increment: 1 } },
@@ -72,8 +73,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ url: globalTemplate.s3Url, cached: true });
     }
 
-    // --- תרחיש ב': לא נמצא (Cache MISS) - יצירה עם AI ---
-    console.log("🤖 Cache MISS. Asking OpenAI for professional boilerplate...");
+    // --- תרחיש ב': יצירה חדשה (AI) ---
+    console.log("🤖 Cache MISS. Asking OpenAI for Interactive Starter Kit...");
     
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -81,39 +82,54 @@ export async function POST(req: Request) {
       messages: [
         {
           role: "system",
-          content: `You are a Senior Software Architect. 
-          Your goal is to generate a **production-ready** project boilerplate structure based on the user's tech stack.
-
-          RULES FOR OUTPUT JSON:
-          1. Root key must be "project_root".
-          2. **CRITICAL:** Files like "package.json", "tsconfig.json", "requirements.txt", "Dockerfile", ".gitignore" MUST be key-value pairs where the value is a **STRING** (the file content). DO NOT create nested objects for these files.
-          3. For "package.json", ensure it is a valid stringified JSON.
-
-          CONTENT GUIDELINES:
-          1. Structure: Use standard folders (e.g., src/controllers, src/routes, src/models, src/utils, or app/ folder for Next.js).
-          2. Content: Do NOT leave files empty. Write minimal runnable boilerplate code.
-          3. Stubs: Include standard functions (e.g., "login", "createUser", "healthCheck") with implementations or helpful comments.
-          4. Config: Include a proper Dockerfile and docker-compose.yml if requested.
+          content: `You are a Senior DevOps Architect. Generate a **Production-Ready, Interactive Starter Kit**.
           
-          EXAMPLE JSON OUTPUT:
+          ### GOAL: 
+          Zero-friction developer experience. The user downloads, runs ONE setup command, and starts coding.
+
+          ### REQUIRED OUTPUT (JSON):
+          1. Root key: "project_root".
+          2. All files must be string values (no nested objects for file content).
+          
+          ### MANDATORY CONTENTS:
+          1. **Project Structure:** Professional folder hierarchy (src/controllers, src/config, etc).
+          2. **Dependencies:** Valid 'package.json' with all needed libraries.
+          
+          ### THE "ZERO CONFIG" LOGIC (CRITICAL):
+          1. **Analyze Requirements:** Determine exactly which env vars are needed (e.g., if MongoDB -> need MONGO_URI).
+          2. **.env.example:** Create this file listing all keys with empty values.
+          3. **scripts/setup.js:** Create a Node.js script (using native 'readline' & 'fs') that:
+             - Welcomes the user.
+             - **Iterates through every key** in .env.example.
+             - **Asks the user** for the value, providing a HINT (e.g., "Enter MONGO_URI (Get it from MongoDB Atlas):").
+             - Writes the results to a new '.env' file.
+             - Prints: "✅ Setup complete! Run 'npm run dev' to start."
+          4. **package.json scripts:** Add a "setup" script: "node scripts/setup.js".
+
+          ### README.md Requirements:
+          - **Quick Start Section:**
+            1. \`npm install\`
+            2. \`npm run setup\` (Interactive configuration)
+            3. \`npm run dev\`
+          - **Configuration Guide:** A short section explaining WHERE to get the required keys (e.g., "Get Stripe keys from dashboard.stripe.com").
+          
+          ### EXAMPLE JSON STRUCTURE:
           {
             "project_root": {
-              "package.json": "{\n  \"name\": \"my-app\",\n  \"dependencies\": { ... }\n}",
-              "src": {
-                "server.js": "const express = require('express')...",
-                "controllers": {
-                  "authController.js": "exports.login = (req, res) => { res.send('Login Logic'); }"
-                }
-              }
+              "package.json": "{ \"scripts\": { \"setup\": \"node scripts/setup.js\" } ... }",
+              "scripts": {
+                "setup.js": "const fs = require('fs'); ..."
+              },
+              "README.md": "# My Project\n\n## Quick Start\n...",
+              "src": { ... }
             }
           }
           `
         },
         { 
           role: "user", 
-          content: `Create a rich boilerplate for: ${prompt}. 
-          Ensure "package.json" is a single file string, not a folder. 
-          Include proper folder structure and basic code implementation.` 
+          content: `Generate a starter kit for: ${prompt}.
+          Ensure the setup script is interactive and helpful.` 
         }
       ],
     });
@@ -124,12 +140,11 @@ export async function POST(req: Request) {
     const structure = JSON.parse(content);
     const rootKey = Object.keys(structure)[0];
 
-    // --- שלב 3: יצירת ZIP ---
+    // --- שלב 3: יצירת ZIP והעלאה ---
     const zip = new JSZip();
     parseStructure(zip, structure[rootKey]);
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
 
-    // --- שלב 4: העלאה ל-Supabase Storage ---
     const fileName = `boilerplate-${Date.now()}.zip`;
     const { error: uploadError } = await supabase.storage
       .from("boilerplates")
@@ -141,17 +156,17 @@ export async function POST(req: Request) {
       .from("boilerplates")
       .getPublicUrl(fileName);
 
-    // --- שלב 5: שמירה ב-DB (עם שיוך למשתמש) ---
+    // --- שלב 4: שמירה ב-DB ---
     await prisma.template.create({
       data: {
         prompt: cleanPrompt,
         s3Url: publicUrlData.publicUrl,
         downloads: 1,
-        userId: userId || null // שומרים את ה-ID של המשתמש שיצר את זה
+        userId: userId || null 
       }
     });
 
-    console.log("✅ New rich template saved & cached!");
+    console.log("✅ New interactive template saved!");
     return NextResponse.json({ url: publicUrlData.publicUrl, cached: false });
 
   } catch (error: any) {
