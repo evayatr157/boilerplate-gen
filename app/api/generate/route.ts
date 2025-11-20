@@ -68,17 +68,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ url: globalTemplate.s3Url, cached: true });
     }
 
-    // --- תרחיש ב': יצירה חדשה (AI) - כאן השינוי! ---
-    console.log("🤖 Cache MISS. Asking OpenAI (New Model)...");
+    // --- תרחיש ב': יצירה חדשה (AI) ---
+    console.log("🤖 Cache MISS. Asking OpenAI (GPT-5.1-Mini)...");
     
     const completion = await openai.chat.completions.create({
-      // שינוי 1: המודל החדש והזול
       model: "gpt-5.1-codex-mini", 
-      
-      // שינוי 2: ביטול חשיבה עמוקה לטובת מהירות
-      // @ts-ignore (במקרה שה-SDK עדיין לא עודכן לטיפוס הזה)
+      // @ts-ignore
       reasoning_effort: "none",
-
       response_format: { type: "json_object" },
       messages: [
         {
@@ -86,23 +82,28 @@ export async function POST(req: Request) {
           content: `You are a Senior DevOps Architect. Generate a **Production-Ready, Interactive Starter Kit**.
           
           ### GOAL: 
-          Zero-friction developer experience. The user downloads, runs ONE setup command, and starts coding.
+          Zero-friction developer experience. The user downloads, runs ONE setup command, and starts coding immediately.
 
           ### REQUIRED OUTPUT (JSON):
           1. Root key: "project_root".
           2. All files must be string values (no nested objects for file content).
           
-          ### MANDATORY CONTENTS:
-          1. **Project Structure:** Professional folder hierarchy (src/controllers, src/config, etc).
-          2. **Dependencies:** Valid 'package.json' with all needed libraries.
+          ### MANDATORY CONTENTS & SAFETY RULES:
+          1. **Project Structure:** Professional folder hierarchy tailored to the language.
+          2. **Dependency Consistency (CRITICAL):** - You MUST ensure that **EVERY** library/module imported in the source code is explicitly listed in the manifest file ('package.json', 'requirements.txt', 'go.mod').
+             - Do not hallucinate imports without adding them to dependencies.
           
-          ### THE "ZERO CONFIG" LOGIC (CRITICAL):
-          1. **Analyze Requirements:** Determine exactly which env vars are needed (e.g., if MongoDB -> need MONGO_URI).
+          3. **Build Safety (CRITICAL):**
+             - **IF TypeScript:** You MUST set "skipLibCheck": true and "esModuleInterop": true in 'tsconfig.json' to prevent library type errors.
+             - **Dockerfile:** Ensure the build process happens *after* dependencies are installed.
+
+          ### THE "ZERO CONFIG" LOGIC:
+          1. **Analyze Requirements:** Determine exactly which env vars are needed.
           2. **.env.example:** Create this file listing all keys with empty values.
           3. **scripts/setup.js:** Create a Node.js script (using native 'readline' & 'fs') that:
              - Welcomes the user.
              - **Iterates through every key** in .env.example.
-             - **Asks the user** for the value, providing a HINT (e.g., "Enter MONGO_URI (Get it from MongoDB Atlas):").
+             - **Asks the user** for the value with a helpful hint.
              - Writes the results to a new '.env' file.
              - Prints: "✅ Setup complete! Run 'npm run dev' to start."
           4. **package.json scripts:** Add a "setup" script: "node scripts/setup.js".
@@ -129,7 +130,7 @@ export async function POST(req: Request) {
         { 
           role: "user", 
           content: `Generate a starter kit for: ${prompt}.
-          Ensure the setup script is interactive and helpful.` 
+          Ensure the setup script is interactive and the build configuration is robust.` 
         }
       ],
     });
@@ -145,7 +146,7 @@ export async function POST(req: Request) {
     parseStructure(zip, structure[rootKey]);
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
 
-    const fileName = `boilerplate-${crypto.randomUUID()}.zip`; // שדרוג אבטחה קטן: UUID במקום Date
+    const fileName = `boilerplate-${crypto.randomUUID()}.zip`;
     const { error: uploadError } = await supabase.storage
       .from("boilerplates")
       .upload(fileName, zipBuffer, { contentType: "application/zip" });
@@ -166,7 +167,7 @@ export async function POST(req: Request) {
       }
     });
 
-    console.log("✅ New template saved (Cheap & Fast)!");
+    console.log("✅ New robust template saved!");
     return NextResponse.json({ url: publicUrlData.publicUrl, cached: false });
 
   } catch (error: any) {
