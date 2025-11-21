@@ -5,16 +5,38 @@ import { createClient } from "@supabase/supabase-js";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 
-// הגדרת OpenAI
+// --- 1. מילון החוקים החכם (המוח) ---
+// כל טכנולוגיה וה"שגעונות" שלה. נוסיף לפה כל פעם שנתקל בבאג ספציפי.
+const TECH_RULES: Record<string, string> = {
+  "mongodb": `
+    - **Mongoose 8+ Rules:** Do NOT use deprecated options like 'useNewUrlParser' or 'useUnifiedTopology' in mongoose.connect(). It causes TypeScript errors.
+    - **Types:** Do NOT add '@types/mongoose' to package.json (it is built-in).`,
+  
+  "express": `
+    - **Types:** You MUST include '@types/express' in devDependencies if using TypeScript.`,
+  
+  "node": `
+    - **Env:** You MUST include 'dotenv' in dependencies.
+    - **Types:** You MUST include '@types/node' in devDependencies.`,
+  
+  "typescript": `
+    - **Config:** In 'tsconfig.json', set "skipLibCheck": true, "noImplicitAny": false, "esModuleInterop": true.`,
+  
+  "python": `
+    - **Venv:** Instructions in README should mention creating a virtual environment (python -m venv venv).
+    - **Files:** Include a standard .gitignore for Python (ignoring __pycache__, venv).`,
+    
+  "docker": `
+    - **Build:** Ensure 'npm install' runs BEFORE 'npm run build' in the Dockerfile.`,
+};
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// הגדרת Supabase Storage
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// פונקציית עזר ליצירת ה-ZIP
 function parseStructure(folder: JSZip, structure: any) {
   for (const [key, value] of Object.entries(structure)) {
     if (typeof value === "string") {
@@ -28,30 +50,35 @@ function parseStructure(folder: JSZip, structure: any) {
 
 export async function POST(req: Request) {
   try {
-    // 1. זיהוי המשתמש (חובה await בגרסאות חדשות)
     const { userId } = await auth();
-    
     const { prompt } = await req.json();
     const cleanPrompt = prompt.trim().toLowerCase(); 
 
     if (!cleanPrompt) return NextResponse.json({ error: "Prompt required" }, { status: 400 });
 
-    // --- שלב 1: חיפוש גלובלי ב-Cache ---
-    // בודקים אם *מישהו* כבר יצר פרויקט כזה, כדי לחסוך זמן וכסף
+    // --- שלב 2: בניית החוקים הדינמיים ---
+    // אנחנו בודקים איזה מילות מפתח מופיעות בבקשה, ומזריקים רק את החוקים הרלוונטיים
+    let specificRules = "";
+    Object.keys(TECH_RULES).forEach((tech) => {
+      if (cleanPrompt.includes(tech)) {
+        specificRules += `\n### RULE FOR ${tech.toUpperCase()}:${TECH_RULES[tech]}`;
+      }
+    });
+    
+    // אם זה טייפסקריפט (ברירת מחדל בנוד), נוסיף את חוקי TS ו-Node
+    if (cleanPrompt.includes("node") || cleanPrompt.includes("typescript")) {
+       specificRules += `\n### RULE FOR TYPESCRIPT:${TECH_RULES["typescript"]}`;
+       specificRules += `\n### RULE FOR NODE:${TECH_RULES["node"]}`;
+    }
+
+    // --- שלב 3: חיפוש ב-Cache ---
     const globalTemplate = await prisma.template.findFirst({
-      where: { 
-        prompt: cleanPrompt,
-        s3Url: { not: "" } 
-      },
+      where: { prompt: cleanPrompt, s3Url: { not: "" } },
       orderBy: { createdAt: 'desc' }
     });
 
-    // --- תרחיש א': נמצא ב-Cache (Cache HIT) ---
     if (globalTemplate) {
-      console.log("⚡ Cache HIT! Serving existing URL...");
-      
-      // אם המשתמש מחובר, שומרים לו את הפרויקט בהיסטוריה האישית
-      // אבל משתמשים בלינק הקיים (בלי לשלם שוב ל-AI)
+      console.log("⚡ Cache HIT!");
       if (userId) {
         await prisma.template.create({
           data: {
@@ -62,18 +89,15 @@ export async function POST(req: Request) {
           }
         });
       }
-
-      // עדכון מונה הורדות כללי
       await prisma.template.update({
         where: { id: globalTemplate.id },
         data: { downloads: { increment: 1 } },
       });
-
       return NextResponse.json({ url: globalTemplate.s3Url, cached: true });
     }
 
-    // --- תרחיש ב': יצירה חדשה (AI) ---
-    console.log("🤖 Cache MISS. Asking OpenAI (GPT-4o)...");
+    // --- שלב 4: יצירה עם AI (עם הפרומפט הדינמי) ---
+    console.log("🤖 Cache MISS. Asking OpenAI...");
     
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -84,51 +108,39 @@ export async function POST(req: Request) {
           content: `You are a Senior DevOps Architect. Generate a **Production-Ready, Interactive Starter Kit**.
           
           ### GOAL: 
-          Zero-friction developer experience. The user downloads, runs ONE setup command, and starts coding immediately.
+          Zero-friction developer experience. Download -> Setup -> Run.
+
+          ### DYNAMIC TECH RULES (STRICTLY FOLLOW THESE):
+          ${specificRules}  <-- כאן נכנסים רק החוקים הרלוונטיים!
 
           ### REQUIRED OUTPUT (JSON):
           1. Root key: "project_root".
-          2. All files must be string values (no nested objects for file content).
+          2. All files must be string values.
           
-          ### MANDATORY CONTENTS & SAFETY RULES:
-          1. **Project Structure:** Professional folder hierarchy tailored to the language.
-          
-          2. **DEPENDENCY ENFORCEMENT (CRITICAL):**
-             - **RULE:** If you write 'import ... from "X"', then "X" MUST be in package.json.
-             - **MANDATORY FOR NODE/TS:** You MUST include 'dotenv', '@types/node', and 'ts-node' in package.json devDependencies/dependencies.
-             - **EXCEPTION:** Do NOT add '@types/mongoose' (it is built-in since version 8). Adding it causes install errors.
-
-          3. **Build Safety (CRITICAL):**
-             - **tsconfig.json:** You MUST set "skipLibCheck": true, "noImplicitAny": false, "esModuleInterop": true.
-             - **Dockerfile:** - Use 'node:18-alpine' (or newer).
-                - Ensure 'npm install' runs before 'npm run build'.
-                - Ensure the 'build' script exists in package.json.
+          ### MANDATORY CONTENTS:
+          1. **Project Structure:** Professional hierarchy.
+          2. **Dependency Consistency:** Ensure EVERY imported module is listed in package.json/requirements.txt.
 
           ### THE "ZERO CONFIG" LOGIC:
-          1. **Analyze Requirements:** Determine exactly which env vars are needed (e.g., MONGO_URI).
-          2. **.env.example:** Create this file listing all keys with empty values.
-          3. **scripts/setup.js:** Create a Node.js script (using native 'readline' & 'fs') that:
-             - Welcomes the user.
-             - **Iterates through every key** in .env.example.
-             - **Asks the user** for the value, providing a HINT (e.g., "Enter MONGO_URI (Get it from MongoDB Atlas):").
-             - Writes the results to a new '.env' file.
-             - Prints: "✅ Setup complete! Run 'npm run dev' to start."
-          4. **package.json scripts:** Add a "setup" script: "node scripts/setup.js".
+          1. **Analyze Requirements:** Determine needed env vars.
+          2. **.env.example:** Create file with placeholders.
+          3. **scripts/setup.js:** Create a Node.js script (native 'readline' & 'fs') that:
+             - Welcomes user.
+             - Iterates keys in .env.example.
+             - Asks for values.
+             - Writes to .env.
+             - Prints success message.
+          4. **package.json scripts:** Add "setup": "node scripts/setup.js".
 
-          ### README.md Requirements:
-          - **Quick Start Section:**
-            1. \`npm install\`
-            2. \`npm run setup\` (Interactive configuration)
-            3. \`npm run dev\`
+          ### README.md:
+          - Must explain how to install, setup, and run.
           
-          ### EXAMPLE JSON STRUCTURE:
+          ### EXAMPLE JSON:
           {
             "project_root": {
-              "package.json": "{ \"scripts\": { \"setup\": \"node scripts/setup.js\" } ... }",
-              "scripts": {
-                "setup.js": "const fs = require('fs'); ..."
-              },
-              "README.md": "# My Project\n\n## Quick Start\n...",
+              "package.json": "{ ... }",
+              "scripts": { "setup.js": "..." },
+              "README.md": "...",
               "src": { ... }
             }
           }
@@ -136,8 +148,7 @@ export async function POST(req: Request) {
         },
         { 
           role: "user", 
-          content: `Generate a starter kit for: ${prompt}.
-          Ensure dependencies are consistent and the setup script is interactive.` 
+          content: `Generate a starter kit for: ${prompt}.` 
         }
       ],
     });
@@ -148,7 +159,7 @@ export async function POST(req: Request) {
     const structure = JSON.parse(content);
     const rootKey = Object.keys(structure)[0];
 
-    // --- שלב 3: יצירת ZIP והעלאה ---
+    // --- שלב 5: יצירת ZIP והעלאה ---
     const zip = new JSZip();
     parseStructure(zip, structure[rootKey]);
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
@@ -164,7 +175,6 @@ export async function POST(req: Request) {
       .from("boilerplates")
       .getPublicUrl(fileName);
 
-    // --- שלב 4: שמירה ב-DB ---
     await prisma.template.create({
       data: {
         prompt: cleanPrompt,
@@ -174,7 +184,7 @@ export async function POST(req: Request) {
       }
     });
 
-    console.log("✅ New robust template saved!");
+    console.log("✅ New template saved!");
     return NextResponse.json({ url: publicUrlData.publicUrl, cached: false });
 
   } catch (error: any) {
