@@ -6,7 +6,6 @@ import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 
 // --- 1. מילון החוקים החכם (המוח) ---
-// כל טכנולוגיה וה"שגעונות" שלה. נוסיף לפה כל פעם שנתקל בבאג ספציפי.
 const TECH_RULES: Record<string, string> = {
   "mongodb": `
     - **Mongoose 8+ Rules:** Do NOT use deprecated options like 'useNewUrlParser' or 'useUnifiedTopology' in mongoose.connect(). It causes TypeScript errors.
@@ -23,11 +22,13 @@ const TECH_RULES: Record<string, string> = {
     - **Config:** In 'tsconfig.json', set "skipLibCheck": true, "noImplicitAny": false, "esModuleInterop": true.`,
   
   "python": `
-    - **Venv:** Instructions in README should mention creating a virtual environment (python -m venv venv).
+    - **Structure:** Put all python code inside 'src/' folder.
+    - **Venv:** Instructions in README should mention creating a virtual environment.
     - **Files:** Include a standard .gitignore for Python (ignoring __pycache__, venv).`,
     
   "docker": `
-    - **Build:** Ensure 'npm install' runs BEFORE 'npm run build' in the Dockerfile.`,
+    - **Build:** Ensure 'npm install' runs BEFORE 'npm run build' in the Dockerfile.
+    - **Context:** Dockerfile COPY commands must match the 'src' folder structure.`,
 };
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -57,7 +58,6 @@ export async function POST(req: Request) {
     if (!cleanPrompt) return NextResponse.json({ error: "Prompt required" }, { status: 400 });
 
     // --- שלב 2: בניית החוקים הדינמיים ---
-    // אנחנו בודקים איזה מילות מפתח מופיעות בבקשה, ומזריקים רק את החוקים הרלוונטיים
     let specificRules = "";
     Object.keys(TECH_RULES).forEach((tech) => {
       if (cleanPrompt.includes(tech)) {
@@ -65,7 +65,6 @@ export async function POST(req: Request) {
       }
     });
     
-    // אם זה טייפסקריפט (ברירת מחדל בנוד), נוסיף את חוקי TS ו-Node
     if (cleanPrompt.includes("node") || cleanPrompt.includes("typescript")) {
        specificRules += `\n### RULE FOR TYPESCRIPT:${TECH_RULES["typescript"]}`;
        specificRules += `\n### RULE FOR NODE:${TECH_RULES["node"]}`;
@@ -96,7 +95,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ url: globalTemplate.s3Url, cached: true });
     }
 
-    // --- שלב 4: יצירה עם AI (עם הפרומפט הדינמי) ---
+    // --- שלב 4: יצירה עם AI ---
     console.log("🤖 Cache MISS. Asking OpenAI...");
     
     const completion = await openai.chat.completions.create({
@@ -111,14 +110,16 @@ export async function POST(req: Request) {
           Zero-friction developer experience. Download -> Setup -> Run.
 
           ### DYNAMIC TECH RULES (STRICTLY FOLLOW THESE):
-          ${specificRules}  <-- כאן נכנסים רק החוקים הרלוונטיים!
+          ${specificRules}
 
           ### REQUIRED OUTPUT (JSON):
           1. Root key: "project_root".
           2. All files must be string values.
           
-          ### MANDATORY CONTENTS:
-          1. **Project Structure:** Professional hierarchy.
+          ### MANDATORY CONTENTS (CRITICAL):
+          1. **Project Structure:** - **MUST** have a 'src' folder.
+             - **MUST** generate actual application code inside 'src' (e.g. src/main.py, src/index.ts).
+             - Do NOT put app logic in the root.
           2. **Dependency Consistency:** Ensure EVERY imported module is listed in package.json/requirements.txt.
 
           ### THE "ZERO CONFIG" LOGIC:
@@ -130,25 +131,26 @@ export async function POST(req: Request) {
              - Asks for values.
              - Writes to .env.
              - Prints success message.
-          4. **package.json scripts:** Add "setup": "node scripts/setup.js".
+          4. **package.json:** ALWAYS create this file (even for Python/Go) just to run the setup script:
+             - "scripts": { "setup": "node scripts/setup.js" }
 
           ### README.md:
-          - Must explain how to install, setup, and run.
+          - Must explain: 1. npm install (for setup), 2. npm run setup, 3. How to run the actual app (docker compose up).
           
           ### EXAMPLE JSON:
           {
             "project_root": {
-              "package.json": "{ ... }",
+              "package.json": "{ \"scripts\": { \"setup\": \"node scripts/setup.js\" } ... }",
               "scripts": { "setup.js": "..." },
-              "README.md": "...",
-              "src": { ... }
+              "src": { "main.py": "..." },
+              "README.md": "..."
             }
           }
           `
         },
         { 
           role: "user", 
-          content: `Generate a starter kit for: ${prompt}.` 
+          content: `Generate a starter kit for: ${prompt}. Make sure to include actual source code in 'src'.` 
         }
       ],
     });
