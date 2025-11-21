@@ -29,6 +29,11 @@ const TECH_RULES: Record<string, string> = {
   "docker": `
     - **Build:** Ensure 'npm install' runs BEFORE 'npm run build' in the Dockerfile.
     - **Context:** Dockerfile COPY commands must match the 'src' folder structure.`,
+
+  "prisma": `
+    - **Python:** Use 'pip install prisma' (NOT prisma-client-py).
+    - **Schema:** Ensure 'schema.prisma' is present.
+    - **Generate:** Run 'prisma generate' after install.`
 };
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
