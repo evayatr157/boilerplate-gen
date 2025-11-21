@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     console.log("🤖 Cache MISS. Asking OpenAI (GPT-4o)...");
     
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o", // חזרנו למודל היציב
+      model: "gpt-4o",
       response_format: { type: "json_object" },
       messages: [
         {
@@ -86,16 +86,18 @@ export async function POST(req: Request) {
           1. Root key: "project_root".
           2. All files must be string values (no nested objects for file content).
           
+          ### MODERN STANDARDS & COMPATIBILITY (CRITICAL):
+          1. **Latest Versions:** Assume the user will install the **latest stable versions** of all libraries (e.g., Mongoose 8+, Express 5, Pydantic v2).
+          2. **No Deprecated Code:** strictly AVOID deprecated methods. 
+             - Example: Do NOT use 'useNewUrlParser' or 'useUnifiedTopology' in Mongoose.
+             - Example: Use new 'switch' syntax in Java if applicable.
+          3. **Strict Consistency:** Ensure the code syntax matches the installed library versions perfectly to avoid type errors.
+
           ### MANDATORY CONTENTS & SAFETY RULES:
           1. **Project Structure:** Professional folder hierarchy tailored to the language.
-          2. **Dependency Consistency (CRITICAL):** - You MUST ensure that **EVERY** library/module imported in the source code is explicitly listed in the manifest file ('package.json', 'requirements.txt', 'go.mod').
-             - Do not hallucinate imports without adding them to dependencies.
-          3. **Build Safety (CRITICAL):**
-            - **IF TypeScript:** - You MUST set "skipLibCheck": true in 'tsconfig.json'.
-             - You MUST set "noImplicitAny": false in 'tsconfig.json' (This is crucial for boilerplate generation).
-             - Include '@types/node' AND '@types/express' (if express is used) in devDependencies.
-          3. **Build Safety (CRITICAL):**
-             - **IF TypeScript:** You MUST set "skipLibCheck": true and "esModuleInterop": true in 'tsconfig.json' to prevent library type errors.
+          2. **Dependency Consistency:** - Ensure EVERY imported module is listed in the manifest file.
+          3. **Build Safety:**
+             - **IF TypeScript:** Set "skipLibCheck": true and "noImplicitAny": false in 'tsconfig.json'. Include '@types/node'.
              - **Dockerfile:** Ensure the build process happens *after* dependencies are installed.
 
           ### THE "ZERO CONFIG" LOGIC:
@@ -131,7 +133,7 @@ export async function POST(req: Request) {
         { 
           role: "user", 
           content: `Generate a starter kit for: ${prompt}.
-          Ensure the setup script is interactive and the build configuration is robust.` 
+          Ensure code syntax is up-to-date with the latest libraries.` 
         }
       ],
     });
