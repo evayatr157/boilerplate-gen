@@ -90,7 +90,10 @@ export async function POST(req: Request) {
           1. **Project Structure:** Professional folder hierarchy tailored to the language.
           2. **Dependency Consistency (CRITICAL):** - You MUST ensure that **EVERY** library/module imported in the source code is explicitly listed in the manifest file ('package.json', 'requirements.txt', 'go.mod').
              - Do not hallucinate imports without adding them to dependencies.
-          
+          3. **Build Safety (CRITICAL):**
+            - **IF TypeScript:** - You MUST set "skipLibCheck": true in 'tsconfig.json'.
+             - You MUST set "noImplicitAny": false in 'tsconfig.json' (This is crucial for boilerplate generation).
+             - Include '@types/node' AND '@types/express' (if express is used) in devDependencies.
           3. **Build Safety (CRITICAL):**
              - **IF TypeScript:** You MUST set "skipLibCheck": true and "esModuleInterop": true in 'tsconfig.json' to prevent library type errors.
              - **Dockerfile:** Ensure the build process happens *after* dependencies are installed.
