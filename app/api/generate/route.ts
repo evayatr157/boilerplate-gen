@@ -69,12 +69,10 @@ export async function POST(req: Request) {
     }
 
     // --- תרחיש ב': יצירה חדשה (AI) ---
-    console.log("🤖 Cache MISS. Asking OpenAI (GPT-5.1-Mini)...");
+    console.log("🤖 Cache MISS. Asking OpenAI (GPT-4o)...");
     
     const completion = await openai.chat.completions.create({
-      model: "gpt-5.1-codex-mini", 
-      // @ts-ignore
-      reasoning_effort: "none",
+      model: "gpt-4o", // חזרנו למודל היציב
       response_format: { type: "json_object" },
       messages: [
         {
