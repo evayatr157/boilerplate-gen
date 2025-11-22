@@ -3,80 +3,105 @@
 import { useState, useEffect } from "react";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 
-// --- הגדרת המטריצה המלאה: שפה -> פריימוורקים -> דאטהבייסים תואמים ---
+// --- 1. הגדרות טכנולוגיה בסיסיות ---
 const TECH_CONFIG: Record<string, { frameworks: string[]; databases: string[] }> = {
   "Node.js (TypeScript)": {
-    frameworks: ["Express", "NestJS", "Fastify", "Next.js (App Router)", "Hono", "Koa", "AdonisJS"],
-    databases: ["PostgreSQL (Prisma)", "PostgreSQL (TypeORM)", "PostgreSQL (Drizzle)", "MongoDB (Mongoose)", "MySQL (Prisma)", "SQLite (Better-SQLite3)", "Redis", "None"]
+    frameworks: ["Express", "NestJS", "Fastify", "Next.js (App Router)"],
+    databases: ["PostgreSQL (Prisma)", "MongoDB (Mongoose)", "MySQL (TypeORM)", "Redis", "None"]
   },
   "Python": {
-    frameworks: ["FastAPI", "Django", "Flask", "Tornado", "Litestar", "Pyramid"],
-    databases: ["PostgreSQL (SQLAlchemy)", "PostgreSQL (Prisma)", "PostgreSQL (Tortoise ORM)", "MongoDB (Motor)", "MongoDB (PyMongo)", "SQLite", "Redis", "None"]
+    frameworks: ["FastAPI", "Django", "Flask"],
+    databases: ["PostgreSQL (SQLAlchemy)", "PostgreSQL (Prisma)", "MongoDB (Motor)", "SQLite", "None"]
   },
   "Go (Golang)": {
-    frameworks: ["Gin", "Echo", "Fiber", "Chi", "Standard Library", "Revel"],
-    databases: ["PostgreSQL (GORM)", "PostgreSQL (Pgx)", "PostgreSQL (Bun)", "MongoDB (Official Driver)", "MySQL (GORM)", "Redis", "None"]
+    frameworks: ["Gin", "Echo", "Fiber", "Standard Lib"],
+    databases: ["PostgreSQL (GORM)", "PostgreSQL (Pgx)", "MongoDB", "Redis", "None"]
   },
   "Java": {
-    frameworks: ["Spring Boot", "Quarkus", "Micronaut", "Jakarta EE", "Vert.x"],
-    databases: ["PostgreSQL (Spring Data JPA)", "PostgreSQL (Hibernate)", "MySQL", "MongoDB (Spring Data)", "H2 (In-Memory)", "None"]
+    frameworks: ["Spring Boot", "Quarkus"],
+    databases: ["PostgreSQL (JPA)", "MySQL", "MongoDB", "None"]
   },
   "C# (.NET)": {
-    frameworks: ["ASP.NET Core Web API", "Blazor Server", "NancyFX"],
-    databases: ["SQL Server (Entity Framework Core)", "PostgreSQL (Entity Framework Core)", "MongoDB (Official Driver)", "SQLite", "Redis", "None"]
+    frameworks: ["ASP.NET Web API", "Blazor Server"],
+    databases: ["SQL Server (EF Core)", "PostgreSQL (EF Core)", "MongoDB", "None"]
   },
   "Rust": {
-    frameworks: ["Actix-web", "Axum", "Rocket", "Warp", "Tide"],
-    databases: ["PostgreSQL (Diesel)", "PostgreSQL (SQLx)", "PostgreSQL (SeaORM)", "MongoDB", "Redis", "None"]
+    frameworks: ["Actix-web", "Axum"],
+    databases: ["PostgreSQL (Diesel)", "PostgreSQL (SQLx)", "None"]
   },
   "PHP": {
-    frameworks: ["Laravel", "Symfony", "Slim", "CodeIgniter", "Lumen"],
-    databases: ["MySQL (Eloquent)", "MySQL (Doctrine)", "PostgreSQL", "SQLite", "None"]
+    frameworks: ["Laravel", "Symfony"],
+    databases: ["MySQL (Eloquent)", "PostgreSQL", "None"]
   },
   "Ruby": {
-    frameworks: ["Ruby on Rails", "Sinatra", "Hanami"],
-    databases: ["PostgreSQL (ActiveRecord)", "MySQL", "SQLite", "MongoDB (Mongoid)", "None"]
-  },
-  "Kotlin": {
-    frameworks: ["Ktor", "Spring Boot (Kotlin)"],
-    databases: ["PostgreSQL (Exposed)", "PostgreSQL (Ktorm)", "MongoDB", "None"]
-  },
-  "Elixir": {
-    frameworks: ["Phoenix", "Plug"],
-    databases: ["PostgreSQL (Ecto)", "MySQL", "None"]
-  },
-  "Swift": {
-    frameworks: ["Vapor", "Kitura"],
-    databases: ["PostgreSQL (Fluent)", "MySQL", "SQLite", "MongoDB", "None"]
+    frameworks: ["Ruby on Rails", "Sinatra"],
+    databases: ["PostgreSQL", "SQLite", "None"]
   }
 };
 
-const AUTH_OPTIONS = ["None", "JWT (Custom)", "Clerk", "Auth0", "Firebase", "Supabase Auth"];
-const TESTING_TOOLS = ["None", "Jest", "Vitest", "PyTest", "JUnit", "XUnit", "Go Test", "RSpec", "PHPUnit"];
+// --- 2. התאמת כלי עזר (Auth & Testing) לשפה ---
+const COMPATIBLE_TOOLS: Record<string, { auth: string[]; testing: string[] }> = {
+  "Node.js (TypeScript)": {
+    auth: ["None", "JWT (Custom)", "Clerk", "Auth0", "Passport.js"],
+    testing: ["None", "Jest", "Vitest", "Mocha"]
+  },
+  "Python": {
+    auth: ["None", "JWT (Custom)", "Auth0", "FastAPI Users"],
+    testing: ["None", "PyTest", "Unittest"]
+  },
+  "Go (Golang)": {
+    auth: ["None", "JWT (Custom)", "Auth0"],
+    testing: ["None", "Go Test", "Testify"]
+  },
+  "Java": {
+    auth: ["None", "Spring Security", "Auth0"],
+    testing: ["None", "JUnit", "TestNG"]
+  },
+  "C# (.NET)": {
+    auth: ["None", "ASP.NET Identity", "Auth0"],
+    testing: ["None", "xUnit", "NUnit", "MSTest"]
+  },
+  "Rust": {
+    auth: ["None", "JWT", "Auth0"],
+    testing: ["None", "Cargo Test"]
+  },
+  "PHP": {
+    auth: ["None", "Laravel Sanctum", "JWT"],
+    testing: ["None", "PHPUnit", "Pest"]
+  },
+  "Ruby": {
+    auth: ["None", "Devise", "JWT"],
+    testing: ["None", "RSpec", "Minitest"]
+  }
+};
 
 export default function Home() {
-  // ברירות מחדל
   const defaultLang = "Node.js (TypeScript)";
   
   const [language, setLanguage] = useState(defaultLang);
-  // מאתחלים לפי השפה שנבחרה
   const [framework, setFramework] = useState(TECH_CONFIG[defaultLang].frameworks[0]);
   const [db, setDb] = useState(TECH_CONFIG[defaultLang].databases[0]);
   
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [auth, setAuth] = useState("None");
-  const [testing, setTesting] = useState("None");
+  // אתחול דינמי גם לכלים המתקדמים
+  const [auth, setAuth] = useState(COMPATIBLE_TOOLS[defaultLang].auth[0]);
+  const [testing, setTesting] = useState(COMPATIBLE_TOOLS[defaultLang].testing[0]);
+  
   const [docker, setDocker] = useState(false);
   const [ciCd, setCiCd] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
 
-  // אפקט: כשמשנים שפה, מעדכנים את הרשימות של ה-Framework וה-DB אוטומטית
+  // עדכון אוטומטי של כל השדות כשמחליפים שפה
   useEffect(() => {
     const config = TECH_CONFIG[language];
+    const tools = COMPATIBLE_TOOLS[language];
+    
     setFramework(config.frameworks[0]);
     setDb(config.databases[0]);
+    setAuth(tools.auth[0]);
+    setTesting(tools.testing[0]);
   }, [language]);
 
   const handleGenerate = async () => {
@@ -145,7 +170,7 @@ export default function Home() {
             Generate Production-Ready <br/> <span className="text-blue-600">Backend Boilerplates</span>
           </h1>
           <p className="text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            Select your stack. Get a complete project with Docker, Auth, and CI/CD in seconds.
+            Stop configuring. Start coding. Get Docker, Auth, and CI/CD in seconds.
           </p>
         </div>
 
@@ -203,13 +228,15 @@ export default function Home() {
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-blue-800 uppercase tracking-wider">Authentication</label>
                     <select value={auth} onChange={(e) => setAuth(e.target.value)} className="w-full p-2 bg-white border border-blue-200 rounded text-sm">
-                      {AUTH_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                      {/* שימוש ברשימה הדינמית במקום הגנרית */}
+                      {COMPATIBLE_TOOLS[language]?.auth.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-blue-800 uppercase tracking-wider">Testing</label>
                     <select value={testing} onChange={(e) => setTesting(e.target.value)} className="w-full p-2 bg-white border border-blue-200 rounded text-sm">
-                      {TESTING_TOOLS.map(o => <option key={o} value={o}>{o}</option>)}
+                      {/* שימוש ברשימה הדינמית */}
+                      {COMPATIBLE_TOOLS[language]?.testing.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
                   <div className="flex items-center space-x-3 bg-white p-3 rounded border border-blue-100">
@@ -241,7 +268,7 @@ export default function Home() {
             )}
           </div>
         </div>
-        <div className="mt-10 text-slate-400 text-sm">© 2025 Code Architect</div>
+        <div className="mt-10 text-slate-400 text-sm">© 2025 Evyatar Shveka</div>
       </div>
     </div>
   );
