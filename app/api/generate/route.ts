@@ -5,39 +5,39 @@ import { createClient } from "@supabase/supabase-js";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 
-// --- הגדרות אבטחה ---
-const MAX_DAILY_GENERATIONS = 5; // מקסימום פרויקטים ליום למשתמש
-const MAX_PROMPT_LENGTH = 300;   // אורך מקסימלי לטקסט הבקשה
-
-// --- 1. מילון החוקים החכם ---
+// --- 1. מילון החוקים החכם (המוח) ---
 const TECH_RULES: Record<string, string> = {
   "mongodb": `
-    - **Mongoose 8+ Rules:** Do NOT use deprecated options like 'useNewUrlParser' or 'useUnifiedTopology' in mongoose.connect(). It causes TypeScript errors.
-    - **Types:** Do NOT add '@types/mongoose' to package.json (it is built-in).`,
+    - **Mongoose:** Do NOT use 'useNewUrlParser' or 'useUnifiedTopology' options (deprecated).
+    - **Types:** Do NOT add '@types/mongoose' to package.json.
+    - **C#/.NET:** Use the official 'MongoDB.Driver', NOT Mongoose.`,
   
   "express": `
-    - **Types:** You MUST include '@types/express' in devDependencies if using TypeScript.`,
+    - **Types:** Include '@types/express' in devDependencies.`,
   
   "node": `
-    - **Env:** You MUST include 'dotenv' in dependencies.
-    - **Types:** You MUST include '@types/node' in devDependencies.`,
+    - **Env:** Include 'dotenv'.
+    - **Types:** Include '@types/node'.`,
   
   "typescript": `
-    - **Config:** In 'tsconfig.json', set "skipLibCheck": true, "noImplicitAny": false, "esModuleInterop": true.`,
+    - **Config:** 'tsconfig.json' MUST have "skipLibCheck": true, "noImplicitAny": false.`,
   
   "python": `
-    - **Structure:** Put all python code inside 'src/' folder.
-    - **Venv:** Instructions in README should mention creating a virtual environment.
-    - **Files:** Include a standard .gitignore for Python (ignoring __pycache__, venv).`,
+    - **Structure:** All python code in 'src/'.
+    - **Venv:** Setup script should handle venv creation if possible, or just pip install.
+    - **Docker:** Use 'python:3.9-slim'.`,
     
+  "c#": `
+    - **Structure:** Solution (.sln) in root, Project (.csproj) in 'src/'.
+    - **Docker:** 'COPY src/*.csproj ./' is incorrect. Ensure COPY paths match the generated file structure.
+    - **Setup:** 'dotnet restore' might fail if SDK missing on user machine -> Wrap in try-catch and suggest Docker.`,
+
   "docker": `
-    - **Build:** Ensure 'npm install' runs BEFORE 'npm run build' in the Dockerfile.
-    - **Context:** Dockerfile COPY commands must match the 'src' folder structure.`,
+    - **Build:** Ensure 'npm install' / 'pip install' / 'dotnet restore' runs BEFORE the build command.
+    - **Context:** Verify COPY paths exist.`,
 
   "prisma": `
-    - **Python:** Use 'pip install prisma' (NOT prisma-client-py).
-    - **Schema:** Ensure 'schema.prisma' is present.
-    - **Generate:** Run 'prisma generate' after install.`
+    - **Python:** Use 'pip install prisma'. Run 'prisma generate'.`
 };
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -62,38 +62,24 @@ export async function POST(req: Request) {
   try {
     const { userId } = await auth();
     const { prompt } = await req.json();
-    
-    // --- Security Check 1: Input Validation ---
-    if (!prompt || typeof prompt !== 'string') {
-        return NextResponse.json({ error: "Invalid prompt format" }, { status: 400 });
-    }
-    if (prompt.length > MAX_PROMPT_LENGTH) {
-        return NextResponse.json({ error: "Prompt is too long (security limit)" }, { status: 400 });
-    }
-
-    // נרמול קלט למניעת כפילויות
     const cleanPrompt = prompt.trim().toLowerCase(); 
 
-    // --- Security Check 2: Rate Limiting (רק למשתמשים רשומים) ---
-    if (userId) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // תחילת היום
+    if (!cleanPrompt) return NextResponse.json({ error: "Prompt required" }, { status: 400 });
 
-        const userUsageCount = await prisma.template.count({
-            where: {
-                userId: userId,
-                createdAt: { gte: today } // כל מה שנוצר מהבוקר
-            }
-        });
-
-        if (userUsageCount >= MAX_DAILY_GENERATIONS) {
-            return NextResponse.json({ 
-                error: "You reached the daily limit (5 projects). Come back tomorrow or upgrade!" 
-            }, { status: 429 });
-        }
+    // --- שלב 2: בניית החוקים הדינמיים ---
+    let specificRules = "";
+    Object.keys(TECH_RULES).forEach((tech) => {
+      if (cleanPrompt.includes(tech)) {
+        specificRules += `\n### RULE FOR ${tech.toUpperCase()}:${TECH_RULES[tech]}`;
+      }
+    });
+    
+    if (cleanPrompt.includes("node") || cleanPrompt.includes("typescript")) {
+       specificRules += `\n### RULE FOR TYPESCRIPT:${TECH_RULES["typescript"]}`;
+       specificRules += `\n### RULE FOR NODE:${TECH_RULES["node"]}`;
     }
 
-    // --- שלב 2: חיפוש ב-Cache ---
+    // --- שלב 3: חיפוש ב-Cache ---
     const globalTemplate = await prisma.template.findFirst({
       where: { prompt: cleanPrompt, s3Url: { not: "" } },
       orderBy: { createdAt: 'desc' }
@@ -118,20 +104,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ url: globalTemplate.s3Url, cached: true });
     }
 
-    // --- שלב 3: הכנת הפרומפט הדינמי ---
-    let specificRules = "";
-    Object.keys(TECH_RULES).forEach((tech) => {
-      if (cleanPrompt.includes(tech)) {
-        specificRules += `\n### RULE FOR ${tech.toUpperCase()}:${TECH_RULES[tech]}`;
-      }
-    });
-    
-    if (cleanPrompt.includes("node") || cleanPrompt.includes("typescript")) {
-       specificRules += `\n### RULE FOR TYPESCRIPT:${TECH_RULES["typescript"]}`;
-       specificRules += `\n### RULE FOR NODE:${TECH_RULES["node"]}`;
-    }
-
-    // --- שלב 4: יצירה עם AI (פרומפט משודרג עם התקנות אוטומטיות) ---
+    // --- שלב 4: יצירה עם AI ---
     console.log("🤖 Cache MISS. Asking OpenAI...");
     
     const completion = await openai.chat.completions.create({
@@ -153,33 +126,33 @@ export async function POST(req: Request) {
           2. All files must be string values.
           
           ### MANDATORY CONTENTS (CRITICAL):
-          1. **Project Structure:** - **MUST** have a 'src' folder.
-             - **MUST** generate actual application code inside 'src' (e.g. src/main.py, src/index.ts).
-             - Do NOT put app logic in the root.
+          1. **Project Structure:** - **Code:** MUST have a 'src' folder for source code.
+             - **Config:** Root level for 'package.json', 'Dockerfile', 'docker-compose.yml'.
+             - **C#/.NET:** Ensure .csproj location matches Dockerfile COPY instruction.
           2. **Dependency Consistency:** Ensure EVERY imported module is listed in package.json/requirements.txt.
 
-          ### THE "ZERO CONFIG" LOGIC (UPDATED):
+          ### THE "ZERO CONFIG" LOGIC:
           1. **Analyze Requirements:** Determine needed env vars.
           2. **.env.example:** Create file with placeholders.
-          3. **scripts/setup.js:** Create a Node.js script (native 'readline', 'fs', 'child_process') that:
+          3. **scripts/setup.js:** Create a Node.js script (native 'readline' & 'fs') that:
              - Welcomes user.
-             - Iterates keys in .env.example and asks for values.
+             - Iterates keys in .env.example.
+             - Asks for values.
              - Writes to .env.
-             - **NEW FEATURE:** Asks "Do you want to install dependencies now? (y/n)".
-             - If 'y': Detects OS/Language and runs 'npm install' or 'pip install -r requirements.txt'.
-             - Prints: "✅ Setup complete! Run 'npm run dev' (or docker compose up) to start."
-          4. **package.json:** ALWAYS create this file (even for Python/Go) just to run the setup script:
+             - Prints success message.
+             - **Try to run install:** If possible, execute install command (npm install / pip install / dotnet restore) in a try-catch block.
+          4. **package.json:** ALWAYS create this file (even for Python/C#/Go) just to run the setup script:
              - "scripts": { "setup": "node scripts/setup.js" }
 
           ### README.md:
-          - Clear instructions: 1. npm run setup (handles install & config), 2. docker compose up.
+          - Must explain: 1. npm install (for setup), 2. npm run setup, 3. docker compose up.
           
           ### EXAMPLE JSON:
           {
             "project_root": {
               "package.json": "{ \"scripts\": { \"setup\": \"node scripts/setup.js\" } ... }",
-              "scripts": { "setup.js": "const { execSync } = require('child_process'); ..." },
-              "src": { "main.py": "..." },
+              "scripts": { "setup.js": "..." },
+              "src": { "Program.cs": "..." },
               "README.md": "..."
             }
           }
@@ -187,7 +160,7 @@ export async function POST(req: Request) {
         },
         { 
           role: "user", 
-          content: `Generate a starter kit for: ${prompt}. Make sure setup.js includes auto-installation logic.` 
+          content: `Generate a starter kit for: ${prompt}. Ensure Dockerfile paths are correct for the generated structure.` 
         }
       ],
     });
@@ -203,7 +176,7 @@ export async function POST(req: Request) {
     parseStructure(zip, structure[rootKey]);
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
 
-    const fileName = `boilerplate-${crypto.randomUUID()}.zip`; // שימוש ב-UUID
+    const fileName = `boilerplate-${crypto.randomUUID()}.zip`;
     const { error: uploadError } = await supabase.storage
       .from("boilerplates")
       .upload(fileName, zipBuffer, { contentType: "application/zip" });
