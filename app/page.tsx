@@ -3,33 +3,65 @@
 import { useState, useEffect } from "react";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 
-// --- 1. הגדרות טכנולוגיה ---
-const TECH_STACKS: Record<string, string[]> = {
-  "Node.js (TypeScript)": ["Express", "NestJS", "Next.js (App Router)", "Fastify"],
-  "Python": ["FastAPI", "Django", "Flask"],
-  "Go (Golang)": ["Gin", "Echo", "Fiber", "Standard Lib"],
-  "C# (.NET)": ["ASP.NET Web API", "Blazor Server"],
-  "Java": ["Spring Boot"],
+// --- הגדרת המטריצה המלאה: שפה -> פריימוורקים -> דאטהבייסים תואמים ---
+const TECH_CONFIG: Record<string, { frameworks: string[]; databases: string[] }> = {
+  "Node.js (TypeScript)": {
+    frameworks: ["Express", "NestJS", "Fastify", "Next.js (App Router)", "Hono", "Koa", "AdonisJS"],
+    databases: ["PostgreSQL (Prisma)", "PostgreSQL (TypeORM)", "PostgreSQL (Drizzle)", "MongoDB (Mongoose)", "MySQL (Prisma)", "SQLite (Better-SQLite3)", "Redis", "None"]
+  },
+  "Python": {
+    frameworks: ["FastAPI", "Django", "Flask", "Tornado", "Litestar", "Pyramid"],
+    databases: ["PostgreSQL (SQLAlchemy)", "PostgreSQL (Prisma)", "PostgreSQL (Tortoise ORM)", "MongoDB (Motor)", "MongoDB (PyMongo)", "SQLite", "Redis", "None"]
+  },
+  "Go (Golang)": {
+    frameworks: ["Gin", "Echo", "Fiber", "Chi", "Standard Library", "Revel"],
+    databases: ["PostgreSQL (GORM)", "PostgreSQL (Pgx)", "PostgreSQL (Bun)", "MongoDB (Official Driver)", "MySQL (GORM)", "Redis", "None"]
+  },
+  "Java": {
+    frameworks: ["Spring Boot", "Quarkus", "Micronaut", "Jakarta EE", "Vert.x"],
+    databases: ["PostgreSQL (Spring Data JPA)", "PostgreSQL (Hibernate)", "MySQL", "MongoDB (Spring Data)", "H2 (In-Memory)", "None"]
+  },
+  "C# (.NET)": {
+    frameworks: ["ASP.NET Core Web API", "Blazor Server", "NancyFX"],
+    databases: ["SQL Server (Entity Framework Core)", "PostgreSQL (Entity Framework Core)", "MongoDB (Official Driver)", "SQLite", "Redis", "None"]
+  },
+  "Rust": {
+    frameworks: ["Actix-web", "Axum", "Rocket", "Warp", "Tide"],
+    databases: ["PostgreSQL (Diesel)", "PostgreSQL (SQLx)", "PostgreSQL (SeaORM)", "MongoDB", "Redis", "None"]
+  },
+  "PHP": {
+    frameworks: ["Laravel", "Symfony", "Slim", "CodeIgniter", "Lumen"],
+    databases: ["MySQL (Eloquent)", "MySQL (Doctrine)", "PostgreSQL", "SQLite", "None"]
+  },
+  "Ruby": {
+    frameworks: ["Ruby on Rails", "Sinatra", "Hanami"],
+    databases: ["PostgreSQL (ActiveRecord)", "MySQL", "SQLite", "MongoDB (Mongoid)", "None"]
+  },
+  "Kotlin": {
+    frameworks: ["Ktor", "Spring Boot (Kotlin)"],
+    databases: ["PostgreSQL (Exposed)", "PostgreSQL (Ktorm)", "MongoDB", "None"]
+  },
+  "Elixir": {
+    frameworks: ["Phoenix", "Plug"],
+    databases: ["PostgreSQL (Ecto)", "MySQL", "None"]
+  },
+  "Swift": {
+    frameworks: ["Vapor", "Kitura"],
+    databases: ["PostgreSQL (Fluent)", "MySQL", "SQLite", "MongoDB", "None"]
+  }
 };
 
-// --- 2. מיפוי דאטהבייסים לפי שפה (מונע בחירות לא הגיוניות) ---
-const COMPATIBLE_DBS: Record<string, string[]> = {
-  "Node.js (TypeScript)": ["PostgreSQL (Prisma)", "MongoDB (Mongoose)", "PostgreSQL (TypeORM)", "MySQL", "Redis", "None"],
-  "Python": ["PostgreSQL (Prisma)", "PostgreSQL (SQLAlchemy)", "MongoDB (Motor)", "SQLite", "Redis", "None"],
-  "Go (Golang)": ["PostgreSQL (GORM)", "PostgreSQL (Pgx)", "MongoDB (Official)", "Redis", "None"],
-  "C# (.NET)": ["PostgreSQL (EF Core)", "SQL Server (EF Core)", "MongoDB (Official Driver)", "Redis", "None"],
-  "Java": ["PostgreSQL (JPA/Hibernate)", "MySQL", "MongoDB", "None"]
-};
-
-const AUTH_OPTIONS = ["None", "JWT (Custom)", "Clerk", "Auth0", "Firebase"];
-const TESTING_TOOLS = ["None", "Jest", "PyTest", "XUnit", "JUnit"];
+const AUTH_OPTIONS = ["None", "JWT (Custom)", "Clerk", "Auth0", "Firebase", "Supabase Auth"];
+const TESTING_TOOLS = ["None", "Jest", "Vitest", "PyTest", "JUnit", "XUnit", "Go Test", "RSpec", "PHPUnit"];
 
 export default function Home() {
-  const [language, setLanguage] = useState("Node.js (TypeScript)");
-  const [framework, setFramework] = useState(TECH_STACKS["Node.js (TypeScript)"][0]);
+  // ברירות מחדל
+  const defaultLang = "Node.js (TypeScript)";
   
-  // כאן אנחנו מאתחלים את ה-DB הראשון מהרשימה התואמת לשפה
-  const [db, setDb] = useState(COMPATIBLE_DBS["Node.js (TypeScript)"][0]);
+  const [language, setLanguage] = useState(defaultLang);
+  // מאתחלים לפי השפה שנבחרה
+  const [framework, setFramework] = useState(TECH_CONFIG[defaultLang].frameworks[0]);
+  const [db, setDb] = useState(TECH_CONFIG[defaultLang].databases[0]);
   
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [auth, setAuth] = useState("None");
@@ -40,10 +72,11 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
 
-  // עדכון אוטומטי של Framework ו-Database כשמחליפים שפה
+  // אפקט: כשמשנים שפה, מעדכנים את הרשימות של ה-Framework וה-DB אוטומטית
   useEffect(() => {
-    setFramework(TECH_STACKS[language][0]);
-    setDb(COMPATIBLE_DBS[language][0]); // <--- התיקון: איפוס ה-DB לברירת מחדל תקינה
+    const config = TECH_CONFIG[language];
+    setFramework(config.frameworks[0]);
+    setDb(config.databases[0]);
   }, [language]);
 
   const handleGenerate = async () => {
@@ -112,7 +145,7 @@ export default function Home() {
             Generate Production-Ready <br/> <span className="text-blue-600">Backend Boilerplates</span>
           </h1>
           <p className="text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            Stop configuring. Start coding. Get Docker, Auth, and CI/CD in seconds.
+            Select your stack. Get a complete project with Docker, Auth, and CI/CD in seconds.
           </p>
         </div>
 
@@ -133,7 +166,7 @@ export default function Home() {
                   value={language} onChange={(e) => setLanguage(e.target.value)}
                   className="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 >
-                  {Object.keys(TECH_STACKS).map((lang) => <option key={lang} value={lang}>{lang}</option>)}
+                  {Object.keys(TECH_CONFIG).map((lang) => <option key={lang} value={lang}>{lang}</option>)}
                 </select>
               </div>
               <div className="space-y-2">
@@ -142,17 +175,16 @@ export default function Home() {
                   value={framework} onChange={(e) => setFramework(e.target.value)}
                   className="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 >
-                  {TECH_STACKS[language].map((fm) => <option key={fm} value={fm}>{fm}</option>)}
+                  {TECH_CONFIG[language].frameworks.map((fm) => <option key={fm} value={fm}>{fm}</option>)}
                 </select>
               </div>
               <div className="space-y-2 md:col-span-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Database</label>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Database & ORM</label>
                 <select 
                   value={db} onChange={(e) => setDb(e.target.value)}
                   className="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 >
-                  {/* שימוש ברשימה הדינמית במקום הסטטית */}
-                  {COMPATIBLE_DBS[language]?.map((d) => <option key={d} value={d}>{d}</option>)}
+                  {TECH_CONFIG[language].databases.map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
             </div>
@@ -209,6 +241,7 @@ export default function Home() {
             )}
           </div>
         </div>
+        <div className="mt-10 text-slate-400 text-sm">© 2025 Code Architect</div>
       </div>
     </div>
   );

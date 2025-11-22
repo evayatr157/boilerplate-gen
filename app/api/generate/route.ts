@@ -5,15 +5,13 @@ import { createClient } from "@supabase/supabase-js";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 
-// --- 1. מילון החוקים החכם (המוח) ---
+// --- מילון החוקים המורחב ---
 const TECH_RULES: Record<string, string> = {
   "mongodb": `
-    - **Mongoose:** Do NOT use 'useNewUrlParser' or 'useUnifiedTopology' options (deprecated).
+    - **Mongoose 8+ Rules:** Do NOT use deprecated options like 'useNewUrlParser' in mongoose.connect().
     - **Types:** Do NOT add '@types/mongoose' to package.json.
-    - **C#/.NET:** Use the official 'MongoDB.Driver', NOT Mongoose.`,
-  
-  "express": `
-    - **Types:** Include '@types/express' in devDependencies.`,
+    - **C#:** Use 'MongoDB.Driver'.
+    - **Java:** Use 'spring-boot-starter-data-mongodb' if Spring.`,
   
   "node": `
     - **Env:** Include 'dotenv'.
@@ -24,20 +22,34 @@ const TECH_RULES: Record<string, string> = {
   
   "python": `
     - **Structure:** All python code in 'src/'.
-    - **Venv:** Setup script should handle venv creation if possible, or just pip install.
+    - **Venv:** Setup script should use 'python -m venv venv' if installing locally.
     - **Docker:** Use 'python:3.9-slim'.`,
     
   "c#": `
     - **Structure:** Solution (.sln) in root, Project (.csproj) in 'src/'.
-    - **Docker:** 'COPY src/*.csproj ./' is incorrect. Ensure COPY paths match the generated file structure.
-    - **Setup:** 'dotnet restore' might fail if SDK missing on user machine -> Wrap in try-catch and suggest Docker.`,
+    - **Docker:** Ensure COPY paths in Dockerfile match the actual structure (src/*.csproj).
+    - **Setup:** Wrap 'dotnet restore' in try-catch.`,
 
-  "docker": `
-    - **Build:** Ensure 'npm install' / 'pip install' / 'dotnet restore' runs BEFORE the build command.
-    - **Context:** Verify COPY paths exist.`,
+  "java": `
+    - **Structure:** Standard Maven/Gradle structure (src/main/java).
+    - **Config:** Include pom.xml or build.gradle.
+    - **Docker:** Use 'openjdk:17-jdk-slim'.`,
+
+  "php": `
+    - **Deps:** Include 'composer.json'.
+    - **Docker:** Use 'php:8.2-apache' or 'fpm'.`,
+
+  "rust": `
+    - **Config:** Include 'Cargo.toml'.
+    - **Docker:** Use multi-stage build (rust:latest -> debian:buster-slim) to keep image small.`,
 
   "prisma": `
-    - **Python:** Use 'pip install prisma'. Run 'prisma generate'.`
+    - **Python:** Use 'pip install prisma'. Run 'prisma generate'.
+    - **Node:** Use 'npm install prisma'.`,
+    
+  "docker": `
+    - **Build:** Ensure dependency install runs BEFORE build command.
+    - **Context:** Verify COPY paths exist.`,
 };
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -66,10 +78,10 @@ export async function POST(req: Request) {
 
     if (!cleanPrompt) return NextResponse.json({ error: "Prompt required" }, { status: 400 });
 
-    // --- שלב 2: בניית החוקים הדינמיים ---
+    // --- בניית חוקים דינמיים ---
     let specificRules = "";
     Object.keys(TECH_RULES).forEach((tech) => {
-      if (cleanPrompt.includes(tech)) {
+      if (cleanPrompt.includes(tech.toLowerCase())) {
         specificRules += `\n### RULE FOR ${tech.toUpperCase()}:${TECH_RULES[tech]}`;
       }
     });
@@ -79,7 +91,7 @@ export async function POST(req: Request) {
        specificRules += `\n### RULE FOR NODE:${TECH_RULES["node"]}`;
     }
 
-    // --- שלב 3: חיפוש ב-Cache ---
+    // --- Cache Check ---
     const globalTemplate = await prisma.template.findFirst({
       where: { prompt: cleanPrompt, s3Url: { not: "" } },
       orderBy: { createdAt: 'desc' }
@@ -104,7 +116,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ url: globalTemplate.s3Url, cached: true });
     }
 
-    // --- שלב 4: יצירה עם AI ---
+    // --- AI Generation ---
     console.log("🤖 Cache MISS. Asking OpenAI...");
     
     const completion = await openai.chat.completions.create({
@@ -126,10 +138,9 @@ export async function POST(req: Request) {
           2. All files must be string values.
           
           ### MANDATORY CONTENTS (CRITICAL):
-          1. **Project Structure:** - **Code:** MUST have a 'src' folder for source code.
-             - **Config:** Root level for 'package.json', 'Dockerfile', 'docker-compose.yml'.
-             - **C#/.NET:** Ensure .csproj location matches Dockerfile COPY instruction.
-          2. **Dependency Consistency:** Ensure EVERY imported module is listed in package.json/requirements.txt.
+          1. **Project Structure:** - **MUST** follow standard conventions for the language (e.g., src/ for JS/TS/Py, src/main/java for Java).
+             - **MUST** generate actual application code (entry point, simple route).
+          2. **Dependency Consistency:** Ensure EVERY imported module is listed in the manifest file (package.json, requirements.txt, go.mod, pom.xml, Cargo.toml).
 
           ### THE "ZERO CONFIG" LOGIC:
           1. **Analyze Requirements:** Determine needed env vars.
@@ -140,19 +151,19 @@ export async function POST(req: Request) {
              - Asks for values.
              - Writes to .env.
              - Prints success message.
-             - **Try to run install:** If possible, execute install command (npm install / pip install / dotnet restore) in a try-catch block.
-          4. **package.json:** ALWAYS create this file (even for Python/C#/Go) just to run the setup script:
+             - **Try to run install:** If possible, execute install command (npm install / pip install / dotnet restore / mvn install) in a try-catch block.
+          4. **package.json:** ALWAYS create this file (even for non-JS projects) just to run the setup script:
              - "scripts": { "setup": "node scripts/setup.js" }
 
           ### README.md:
-          - Must explain: 1. npm install (for setup), 2. npm run setup, 3. docker compose up.
+          - Must explain: 1. npm install (for setup), 2. npm run setup, 3. How to run the actual app (docker compose up).
           
           ### EXAMPLE JSON:
           {
             "project_root": {
               "package.json": "{ \"scripts\": { \"setup\": \"node scripts/setup.js\" } ... }",
               "scripts": { "setup.js": "..." },
-              "src": { "Program.cs": "..." },
+              "src": { "main.py": "..." },
               "README.md": "..."
             }
           }
@@ -160,7 +171,7 @@ export async function POST(req: Request) {
         },
         { 
           role: "user", 
-          content: `Generate a starter kit for: ${prompt}. Ensure Dockerfile paths are correct for the generated structure.` 
+          content: `Generate a starter kit for: ${prompt}. Include actual source code.` 
         }
       ],
     });
@@ -171,7 +182,6 @@ export async function POST(req: Request) {
     const structure = JSON.parse(content);
     const rootKey = Object.keys(structure)[0];
 
-    // --- שלב 5: יצירת ZIP והעלאה ---
     const zip = new JSZip();
     parseStructure(zip, structure[rootKey]);
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
