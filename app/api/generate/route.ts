@@ -5,7 +5,11 @@ import { createClient } from "@supabase/supabase-js";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
 
-// --- 1. מילון החוקים החכם (המוח) ---
+// --- הגדרות אבטחה ---
+const MAX_DAILY_GENERATIONS = 5; // מקסימום פרויקטים ליום למשתמש
+const MAX_PROMPT_LENGTH = 300;   // אורך מקסימלי לטקסט הבקשה
+
+// --- 1. מילון החוקים החכם ---
 const TECH_RULES: Record<string, string> = {
   "mongodb": `
     - **Mongoose 8+ Rules:** Do NOT use deprecated options like 'useNewUrlParser' or 'useUnifiedTopology' in mongoose.connect(). It causes TypeScript errors.
@@ -58,24 +62,38 @@ export async function POST(req: Request) {
   try {
     const { userId } = await auth();
     const { prompt } = await req.json();
-    const cleanPrompt = prompt.trim().toLowerCase(); 
-
-    if (!cleanPrompt) return NextResponse.json({ error: "Prompt required" }, { status: 400 });
-
-    // --- שלב 2: בניית החוקים הדינמיים ---
-    let specificRules = "";
-    Object.keys(TECH_RULES).forEach((tech) => {
-      if (cleanPrompt.includes(tech)) {
-        specificRules += `\n### RULE FOR ${tech.toUpperCase()}:${TECH_RULES[tech]}`;
-      }
-    });
     
-    if (cleanPrompt.includes("node") || cleanPrompt.includes("typescript")) {
-       specificRules += `\n### RULE FOR TYPESCRIPT:${TECH_RULES["typescript"]}`;
-       specificRules += `\n### RULE FOR NODE:${TECH_RULES["node"]}`;
+    // --- Security Check 1: Input Validation ---
+    if (!prompt || typeof prompt !== 'string') {
+        return NextResponse.json({ error: "Invalid prompt format" }, { status: 400 });
+    }
+    if (prompt.length > MAX_PROMPT_LENGTH) {
+        return NextResponse.json({ error: "Prompt is too long (security limit)" }, { status: 400 });
     }
 
-    // --- שלב 3: חיפוש ב-Cache ---
+    // נרמול קלט למניעת כפילויות
+    const cleanPrompt = prompt.trim().toLowerCase(); 
+
+    // --- Security Check 2: Rate Limiting (רק למשתמשים רשומים) ---
+    if (userId) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // תחילת היום
+
+        const userUsageCount = await prisma.template.count({
+            where: {
+                userId: userId,
+                createdAt: { gte: today } // כל מה שנוצר מהבוקר
+            }
+        });
+
+        if (userUsageCount >= MAX_DAILY_GENERATIONS) {
+            return NextResponse.json({ 
+                error: "You reached the daily limit (5 projects). Come back tomorrow or upgrade!" 
+            }, { status: 429 });
+        }
+    }
+
+    // --- שלב 2: חיפוש ב-Cache ---
     const globalTemplate = await prisma.template.findFirst({
       where: { prompt: cleanPrompt, s3Url: { not: "" } },
       orderBy: { createdAt: 'desc' }
@@ -100,7 +118,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ url: globalTemplate.s3Url, cached: true });
     }
 
-    // --- שלב 4: יצירה עם AI ---
+    // --- שלב 3: הכנת הפרומפט הדינמי ---
+    let specificRules = "";
+    Object.keys(TECH_RULES).forEach((tech) => {
+      if (cleanPrompt.includes(tech)) {
+        specificRules += `\n### RULE FOR ${tech.toUpperCase()}:${TECH_RULES[tech]}`;
+      }
+    });
+    
+    if (cleanPrompt.includes("node") || cleanPrompt.includes("typescript")) {
+       specificRules += `\n### RULE FOR TYPESCRIPT:${TECH_RULES["typescript"]}`;
+       specificRules += `\n### RULE FOR NODE:${TECH_RULES["node"]}`;
+    }
+
+    // --- שלב 4: יצירה עם AI (פרומפט משודרג עם התקנות אוטומטיות) ---
     console.log("🤖 Cache MISS. Asking OpenAI...");
     
     const completion = await openai.chat.completions.create({
@@ -127,26 +158,27 @@ export async function POST(req: Request) {
              - Do NOT put app logic in the root.
           2. **Dependency Consistency:** Ensure EVERY imported module is listed in package.json/requirements.txt.
 
-          ### THE "ZERO CONFIG" LOGIC:
+          ### THE "ZERO CONFIG" LOGIC (UPDATED):
           1. **Analyze Requirements:** Determine needed env vars.
           2. **.env.example:** Create file with placeholders.
-          3. **scripts/setup.js:** Create a Node.js script (native 'readline' & 'fs') that:
+          3. **scripts/setup.js:** Create a Node.js script (native 'readline', 'fs', 'child_process') that:
              - Welcomes user.
-             - Iterates keys in .env.example.
-             - Asks for values.
+             - Iterates keys in .env.example and asks for values.
              - Writes to .env.
-             - Prints success message.
+             - **NEW FEATURE:** Asks "Do you want to install dependencies now? (y/n)".
+             - If 'y': Detects OS/Language and runs 'npm install' or 'pip install -r requirements.txt'.
+             - Prints: "✅ Setup complete! Run 'npm run dev' (or docker compose up) to start."
           4. **package.json:** ALWAYS create this file (even for Python/Go) just to run the setup script:
              - "scripts": { "setup": "node scripts/setup.js" }
 
           ### README.md:
-          - Must explain: 1. npm install (for setup), 2. npm run setup, 3. How to run the actual app (docker compose up).
+          - Clear instructions: 1. npm run setup (handles install & config), 2. docker compose up.
           
           ### EXAMPLE JSON:
           {
             "project_root": {
               "package.json": "{ \"scripts\": { \"setup\": \"node scripts/setup.js\" } ... }",
-              "scripts": { "setup.js": "..." },
+              "scripts": { "setup.js": "const { execSync } = require('child_process'); ..." },
               "src": { "main.py": "..." },
               "README.md": "..."
             }
@@ -155,7 +187,7 @@ export async function POST(req: Request) {
         },
         { 
           role: "user", 
-          content: `Generate a starter kit for: ${prompt}. Make sure to include actual source code in 'src'.` 
+          content: `Generate a starter kit for: ${prompt}. Make sure setup.js includes auto-installation logic.` 
         }
       ],
     });
@@ -171,7 +203,7 @@ export async function POST(req: Request) {
     parseStructure(zip, structure[rootKey]);
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
 
-    const fileName = `boilerplate-${crypto.randomUUID()}.zip`;
+    const fileName = `boilerplate-${crypto.randomUUID()}.zip`; // שימוש ב-UUID
     const { error: uploadError } = await supabase.storage
       .from("boilerplates")
       .upload(fileName, zipBuffer, { contentType: "application/zip" });
