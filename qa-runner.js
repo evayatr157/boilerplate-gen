@@ -29,7 +29,7 @@ if (fs.existsSync(OUT_DIR)) fs.rmSync(OUT_DIR, { recursive: true, force: true })
 fs.mkdirSync(OUT_DIR);
 
 async function runTest() {
-  console.log("🚀 Starting 'Golden Path' QA Test...\n");
+  console.log("🚀 Starting 'Golden Path' QA Test (Increased Timeout)...\n");
   const errors = [];
 
   for (const [index, prompt] of SCENARIOS.entries()) {
@@ -38,51 +38,59 @@ async function runTest() {
     fs.mkdirSync(testDir);
 
     try {
-      // A. שליחת בקשה ל-API (עם Timestamp כדי לעקוף Cache ולקבל תוצאה טרייה לבדיקה)
-      console.log("   ⏳ Generating...");
+      // A. שליחת בקשה ל-API (עם Timestamp לעקיפת Cache ו-Timeout ארוך)
+      console.log("   ⏳ Generating (may take time)...");
       const uniquePrompt = `${prompt} --qa-${Date.now()}`; 
       
-      const response = await fetch(BASE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: uniquePrompt })
-      });
-      
-      const data = await response.json();
-      if (!data.url) throw new Error(data.error || "No URL returned");
-      console.log("   ✅ Generated.");
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 300000); // 5 דקות timeout
 
-      // B. הורדת ה-ZIP
-      const zipBuffer = await fetch(data.url).then(res => res.arrayBuffer());
-      const zipPath = path.join(testDir, "project.zip");
-      fs.writeFileSync(zipPath, Buffer.from(zipBuffer));
-
-      // C. חילוץ
-      const zip = new AdmZip(zipPath);
-      zip.extractAllTo(testDir, true);
-      
-      // D. ניסיון Build עם Docker
-      // אנחנו מריצים 'docker compose build' בלבד (בלי up) כדי לראות שהבנייה עוברת
-      console.log("   🐳 Attempting Docker Build...");
       try {
+        const response = await fetch(BASE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: uniquePrompt }),
+          signal: controller.signal
+        });
+        
+        const data = await response.json();
+        if (!data.url) throw new Error(data.error || "No URL returned");
+        console.log("   ✅ Generated.");
+
+        // B. הורדת ה-ZIP
+        const zipBuffer = await fetch(data.url).then(res => res.arrayBuffer());
+        const zipPath = path.join(testDir, "project.zip");
+        fs.writeFileSync(zipPath, Buffer.from(zipBuffer));
+
+        // C. חילוץ
+        const zip = new AdmZip(zipPath);
+        zip.extractAllTo(testDir, true);
+        
+        // D. ניסיון Build עם Docker
+        console.log("   🐳 Attempting Docker Build...");
         execSync(`docker compose build`, { cwd: testDir, stdio: 'pipe' }); 
         console.log("   🟢 BUILD SUCCESS!");
-      } catch (buildError) {
-        console.log("   🔴 BUILD FAILED!");
-        // שמירת הלוג כדי שתוכל לנתח את השגיאה
-        const errorLog = buildError.stderr.toString() + "\n" + buildError.stdout.toString();
-        const errorFile = path.join(testDir, "error.log");
-        fs.writeFileSync(errorFile, errorLog);
-        
-        errors.push({
-          prompt,
-          errorPath: errorFile
-        });
+
+      } finally {
+        clearTimeout(timeout);
       }
 
     } catch (error) {
-      console.error(`   ❌ FATAL ERROR: ${error.message}`);
-      errors.push({ prompt, error: error.message });
+      let errorMessage = error.message;
+      
+      // טיפול מיוחד בשגיאות בנייה של דוקר (כדי לשמור את הלוג)
+      if (error.stdout || error.stderr) { // זו שגיאת execSync
+        console.log("   🔴 BUILD FAILED!");
+        errorMessage = "Docker Build Failed";
+        const fullLog = (error.stdout?.toString() || "") + "\n" + (error.stderr?.toString() || "");
+        const errorFile = path.join(testDir, "error.log");
+        fs.writeFileSync(errorFile, fullLog);
+        errorMessage += ` (Log saved to ${errorFile})`;
+      } else {
+        console.error(`   ❌ FATAL ERROR: ${errorMessage}`);
+      }
+
+      errors.push({ prompt, error: errorMessage });
     }
   }
   
@@ -92,14 +100,12 @@ async function runTest() {
   console.log("========================================");
   
   if (errors.length === 0) {
-    console.log("✨ PERFECT! All popular stacks are building correctly.");
-    console.log("   The Cache is now warmed up with valid templates.");
+    console.log("✨ PERFECT! All stacks built successfully.");
   } else {
     console.log(`⚠️  Found ${errors.length} failures:\n`);
     errors.forEach(e => {
       console.log(`❌ ${e.prompt}`);
-      if (e.errorPath) console.log(`   See log: ${e.errorPath}`);
-      else console.log(`   Error: ${e.error}`);
+      console.log(`   Error: ${e.error}\n`);
     });
   }
 }
