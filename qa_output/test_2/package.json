@@ -1,7 +1,0 @@
-{
-  "name": "fastapi-prisma-starter",
-  "version": "1.0.0",
-  "scripts": {
-    "setup": "node scripts/setup.js"
-  }
-}

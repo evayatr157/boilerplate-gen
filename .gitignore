@@ -41,3 +41,8 @@ yarn-error.log*
 next-env.d.ts
 
 /app/generated/prisma
+
+# QA Testing
+qa_output/
+*.zip
+qa-runner.js
