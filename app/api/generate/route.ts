@@ -51,10 +51,14 @@ const TECH_RULES: Record<string, string> = {
     - **Config:** Include 'pom.xml'.
     - **Docker:** Use 'openjdk:17-jdk-slim'.`,
 
-  "go": `
-    - **Structure (CRITICAL):** Create 'main.go' and 'go.mod' in the ROOT directory. Do NOT use 'cmd/' or 'src/' folders for this simple boilerplate.
-    - **Docker:** Use 'FROM golang:1.21-alpine'. Command: 'COPY go.mod ./', 'COPY *.go ./'.
-    - **Build:** 'go build -o main .'.`,
+    "go": `
+    - **SPEED (CRITICAL):** Generate ONLY 'main.go' and 'go.mod'.
+    - **Docker:** Use 'FROM golang:1.21-alpine'.
+    - **Build Steps (CRITICAL):**
+      1. COPY go.mod ./
+      2. RUN go mod tidy
+      3. COPY *.go ./
+      4. RUN go build -o main .`,
 
   "ruby": `
     - **Config:** Include 'Gemfile'.
@@ -181,7 +185,7 @@ export async function POST(req: Request) {
     if (cleanPrompt.includes("nest")) specificRules += `\n### RULE FOR NESTJS:${TECH_RULES["nestjs"]}`;
 
     if (cleanPrompt.includes("django")) specificRules += `\n### RULE FOR DJANGO:${TECH_RULES["django"]}`;
-    
+
     console.log("🤖 Cache MISS. Asking OpenAI...");
     
     const completion = await openai.chat.completions.create({
