@@ -49,8 +49,9 @@ const TECH_RULES: Record<string, string> = {
     - **SPEED (CRITICAL):** Generate a single-app project. Do NOT generate admin files or complex migrations. Keep it minimal to prevent timeout.
     - **Docker:** Use 'python:3.9-slim'.`,
     
-  "c#": `
+    "c#": `
     - **Structure:** Solution (.sln) in root, Project (.csproj) in 'src/'.
+    - **Style (CRITICAL):** Use standard .NET 6+ style. Do NOT mix top-level statements with Startup.cs.
     - **Docker:** Ensure COPY paths match structure (e.g., 'COPY src/*.csproj ./').
     - **Setup:** Wrap 'dotnet restore' in try-catch.`,
 
@@ -62,7 +63,7 @@ const TECH_RULES: Record<string, string> = {
     - **Docker (CRITICAL):** Use MULTI-STAGE build with WORKDIR.
       1. Stage 1: FROM maven:3.9-eclipse-temurin-17 AS build -> WORKDIR /app -> COPY . . -> RUN mvn clean package -DskipTests
       2. Stage 2: FROM eclipse-temurin:17-jdk-jammy -> WORKDIR /app -> COPY --from=build /app/target/app.jar app.jar -> ENTRYPOINT ["java","-jar","app.jar"]`,
-      
+
     "go": `
     - **SPEED (CRITICAL):** Generate ONLY 'main.go' and 'go.mod'.
     - **Docker:** Use 'FROM golang:1.21-alpine'.
