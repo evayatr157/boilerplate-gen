@@ -26,9 +26,14 @@ const TECH_RULES: Record<string, string> = {
     - **Dependencies (CRITICAL):** You MUST add '@types/node' to devDependencies if using TypeScript.
     - **Scripts:** Ensure 'package.json' has a "build" script.`,
     
-  "typescript": `
-    - **Config:** 'tsconfig.json' MUST have "skipLibCheck": true, "noImplicitAny": false.`,
-  
+    "typescript": `
+    - **Config (CRITICAL):** 'tsconfig.json' MUST include:
+      "experimentalDecorators": true,
+      "emitDecoratorMetadata": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "noImplicitAny": false.`,
+      
   "nestjs": `
     - **SPEED:** Generate a MINIMAL scaffold (AppModule, AppController only). Do NOT generate full CRUD resources (to prevent timeout).
     - **Docker:** Use 'COPY package*.json ./'.`,
