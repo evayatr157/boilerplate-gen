@@ -121,8 +121,9 @@ const TECH_RULES: Record<string, string> = {
     - **Python:** Use 'pip install prisma'. Run 'prisma generate'.
     - **Node:** Use 'npm install prisma'.`,
     
-  "docker": `
-    - **YAML Syntax (CRITICAL):** In docker-compose.yml, ALWAYS put a space after the colon (e.g., "version: '3.8'", NOT "version:'3.8'").
+    "docker": `
+    - **YAML Formatting (CRITICAL):** The content of 'docker-compose.yml' MUST be a multi-line string with proper YAML indentation. Do NOT generate a single-line string with literal '\\n' characters.
+    - **Syntax:** ALWAYS put a space after the colon (e.g., "version: '3.8'", NOT "version:'3.8'").
     - **Build:** Ensure dependency install runs BEFORE build command.`,
 };
 
