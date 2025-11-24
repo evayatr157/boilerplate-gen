@@ -79,15 +79,21 @@ export default function Home() {
   // Status State
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
-  
-  // --- התיקון: ה-State וה-Effect חייבים להיות בתוך הפונקציה ---
   const [downloadCount, setDownloadCount] = useState<number | null>(null);
 
-  useEffect(() => {
+  // --- פונקציה לעדכון הסטטיסטיקות ---
+  const refreshStats = () => {
     fetch("/api/stats")
       .then(res => res.json())
       .then(data => setDownloadCount(data.count))
       .catch(err => console.error("Failed to fetch stats", err));
+  };
+
+  // --- אפקט 1: טעינה ראשונית + עדכון אוטומטי כל 10 שניות (Live Mode) ---
+  useEffect(() => {
+    refreshStats(); // טעינה ראשונה
+    const interval = setInterval(refreshStats, 10000); // רענון כל 10 שניות
+    return () => clearInterval(interval); // ניקוי ביציאה
   }, []);
 
   // Update dependencies on language change
@@ -128,7 +134,7 @@ export default function Home() {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min timeout
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
 
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -143,6 +149,13 @@ export default function Home() {
 
       if (data.url) {
         setStatus(data.cached ? "⚡ Cache HIT!" : "✅ Done!");
+        
+        // עדכון אופטימי מיידי (בשביל ההרגשה הטובה)
+        setDownloadCount((prev) => (prev !== null ? prev + 1 : 1));
+        
+        // עדכון אמיתי מול השרת (למקרה שמישהו אחר הוריד באותו רגע)
+        refreshStats();
+
         const a = document.createElement("a");
         a.href = data.url;
         a.download = `boilerplate-${framework.toLowerCase().replace(/ /g, "-")}.zip`;
@@ -187,9 +200,9 @@ export default function Home() {
             Generate Production-Ready <br/> <span className="text-blue-600">Backend Boilerplates</span>
           </h1>
 
-          {/* --- המונה החדש והמתוקן --- */}
+          {/* Counter Badge */}
           {downloadCount !== null && (
-            <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-1 rounded-full text-sm font-medium border border-blue-100 shadow-sm animate-fade-in">
+            <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-1 rounded-full text-sm font-medium border border-blue-100 shadow-sm animate-fade-in transition-all duration-500">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
