@@ -23,8 +23,9 @@ const TECH_RULES: Record<string, string> = {
     - **Docker:** Use 'COPY package*.json ./' (WITH WILDCARD).
     - **Env:** Include 'dotenv'.
     - **Structure:** Use 'src/' folder.
-    - **Scripts (CRITICAL):** Ensure 'package.json' has a "build" script (e.g., "tsc" for TypeScript, or "echo 'No build needed'" for plain JS). Dockerfile expects it.`,
-  
+    - **Dependencies (CRITICAL):** You MUST add '@types/node' to devDependencies if using TypeScript.
+    - **Scripts:** Ensure 'package.json' has a "build" script.`,
+    
   "typescript": `
     - **Config:** 'tsconfig.json' MUST have "skipLibCheck": true, "noImplicitAny": false.`,
   
