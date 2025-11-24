@@ -11,9 +11,9 @@ const MAX_PROMPT_LENGTH = 600;
 const TECH_RULES: Record<string, string> = {
   // --- Database Rules ---
   "mongodb": `
-    - **Mongoose:** Do NOT use deprecated options like 'useNewUrlParser'.
+    - **Mongoose (CRITICAL):** Do NOT use 'useNewUrlParser', 'useUnifiedTopology', 'useCreateIndex', or 'useFindAndModify'. They are deprecated/removed in Mongoose 6+. Just use 'mongoose.connect(uri)'.
     - **Types:** Do NOT add '@types/mongoose' to package.json.
-    - **Non-JS:** Use official drivers (e.g., 'MongoDB.Driver' for C#, 'mongo-go-driver' for Go).`,
+    - **Non-JS:** Use official drivers.`,
   
   "postgres": `
     - **Connection:** Ensure connection string uses 'postgresql://' protocol.`,
@@ -33,7 +33,7 @@ const TECH_RULES: Record<string, string> = {
       "esModuleInterop": true,
       "skipLibCheck": true,
       "noImplicitAny": false.`,
-      
+
   "nestjs": `
     - **SPEED:** Generate a MINIMAL scaffold (AppModule, AppController only). Do NOT generate full CRUD resources (to prevent timeout).
     - **Docker:** Use 'COPY package*.json ./'.`,
