@@ -51,9 +51,12 @@ const TECH_RULES: Record<string, string> = {
     
     "c#": `
     - **Structure:** Solution (.sln) in root, Project (.csproj) in 'src/'.
-    - **Style (CRITICAL):** Use standard .NET 6+ style. Do NOT mix top-level statements with Startup.cs.
-    - **Docker:** Ensure COPY paths match structure (e.g., 'COPY src/*.csproj ./').
-    - **Setup:** Wrap 'dotnet restore' in try-catch.`,
+    - **Code Style (CRITICAL):** ALWAYS include 'using System;' and 'using System.Collections.Generic;' in ALL C# files.
+    - **Style:** Use standard .NET 6+ style (Program.cs with builder), no Startup.cs.
+    - **Docker (CRITICAL):**
+      1. Use 'mcr.microsoft.com/dotnet/sdk:6.0' for build.
+      2. Use 'mcr.microsoft.com/dotnet/aspnet:6.0' for runtime.
+      3. ENTRYPOINT: Use wildcard to find DLL: ENTRYPOINT ["sh", "-c", "dotnet *.dll"] inside the /app folder.`,
 
     "java": `
     - **Structure:** src/main/java.
