@@ -11,9 +11,10 @@ const MAX_PROMPT_LENGTH = 600;
 const TECH_RULES: Record<string, string> = {
   // --- Database Rules ---
   "mongodb": `
-    - **Mongoose (CRITICAL):** Do NOT use 'useNewUrlParser', 'useUnifiedTopology', 'useCreateIndex', or 'useFindAndModify'. They are deprecated/removed in Mongoose 6+. Just use 'mongoose.connect(uri)'.
+    - **NestJS (CRITICAL):** Use package '@nestjs/mongoose' AND 'mongoose'. Do NOT use 'nestjs-mongoose' (it does not exist).
+    - **Mongoose Config:** Do NOT use 'useNewUrlParser' or 'useUnifiedTopology' (deprecated).
     - **Types:** Do NOT add '@types/mongoose' to package.json.
-    - **Non-JS:** Use official drivers.`,
+    - **Non-JS:** Use official drivers (e.g., 'MongoDB.Driver' for C#, 'mongo-go-driver' for Go).`,
   
   "postgres": `
     - **Connection:** Ensure connection string uses 'postgresql://' protocol.`,
