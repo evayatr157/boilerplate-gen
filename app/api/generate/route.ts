@@ -54,10 +54,10 @@ const TECH_RULES: Record<string, string> = {
     - **Docker:** Ensure COPY paths match structure (e.g., 'COPY src/*.csproj ./').
     - **Setup:** Wrap 'dotnet restore' in try-catch.`,
 
-  "java": `
+    "java": `
     - **Structure:** src/main/java.
     - **Config:** Include 'pom.xml'.
-    - **Docker:** Use 'openjdk:17-jdk-slim'.`,
+    - **Docker:** Do NOT use 'openjdk'. Use 'FROM eclipse-temurin:17-jdk-alpine'.`,
 
     "go": `
     - **SPEED (CRITICAL):** Generate ONLY 'main.go' and 'go.mod'.
