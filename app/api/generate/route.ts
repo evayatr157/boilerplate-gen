@@ -54,10 +54,11 @@ const TECH_RULES: Record<string, string> = {
     "go": `
     - **SPEED (CRITICAL):** Generate ONLY 'main.go' and 'go.mod'.
     - **Docker:** Use 'FROM golang:1.21-alpine'.
-    - **Build Steps (CRITICAL):**
+    - **Dependencies:** In go.mod, do NOT pin old versions. Use 'go 1.21' directive.
+    - **Build Steps (CRITICAL ORDER):**
       1. COPY go.mod ./
-      2. RUN go mod tidy
-      3. COPY *.go ./
+      2. COPY src/*.go ./
+      3. RUN go mod tidy
       4. RUN go build -o main .`,
 
   "ruby": `
@@ -245,7 +246,7 @@ export async function POST(req: Request) {
              - **Auto-Install:** Asks "Install dependencies? (y/n)". If 'y', runs install command (npm install / pip install / dotnet restore) in try-catch.
              - **Auto-Git (NEW):** Asks "Initialize Git repository? (y/n)". If 'y', runs 'git init' and 'git add .'.
              - Prints success message.
-             
+
           4. **package.json:** ALWAYS create this file to run the setup script:
              - "scripts": { "setup": "node scripts/setup.js" }
 
