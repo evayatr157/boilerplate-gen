@@ -57,7 +57,7 @@ const TECH_RULES: Record<string, string> = {
     "java": `
     - **Structure:** src/main/java.
     - **Config:** Include 'pom.xml'.
-    - **Docker:** Do NOT use 'openjdk'. Use 'FROM eclipse-temurin:17-jdk-alpine'.`,
+    - **Docker:** Use 'FROM eclipse-temurin:17-jdk-jammy' (Avoid alpine due to M1/M2 compatibility issues).`,
 
     "go": `
     - **SPEED (CRITICAL):** Generate ONLY 'main.go' and 'go.mod'.
