@@ -20,9 +20,10 @@ const TECH_RULES: Record<string, string> = {
 
   // --- Language Rules ---
   "node": `
-    - **Docker:** Use 'COPY package*.json ./' (WITH WILDCARD) to prevent error if lock-file is missing.
+    - **Docker:** Use 'COPY package*.json ./' (WITH WILDCARD).
     - **Env:** Include 'dotenv'.
-    - **Structure:** Use 'src/' folder.`,
+    - **Structure:** Use 'src/' folder.
+    - **Scripts (CRITICAL):** Ensure 'package.json' has a "build" script (e.g., "tsc" for TypeScript, or "echo 'No build needed'" for plain JS). Dockerfile expects it.`,
   
   "typescript": `
     - **Config:** 'tsconfig.json' MUST have "skipLibCheck": true, "noImplicitAny": false.`,
