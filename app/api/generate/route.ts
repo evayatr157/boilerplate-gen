@@ -83,6 +83,24 @@ const TECH_RULES: Record<string, string> = {
   "elixir": `
     - **Config:** 'mix.exs'.
     - **Docker:** elixir:1.14-alpine.`,
+  
+  "graphql": `
+    - **Schema:** Create a basic schema.graphql or code-first approach.
+    - **Server:** Use Apollo Server (Node) or Strawberry/Ariadne (Python).`,
+
+  "swagger": `
+    - **Docs:** Generate a 'swagger.yaml' file or enable auto-docs (FastAPI/NestJS).`,
+
+  "worker": `
+    - **Redis:** Include redis service in docker-compose.yml.
+    - **Code:** Create a simple worker script/entry point.`,
+
+  "terraform": `
+    - **IaC:** Create a 'terraform/' folder with 'main.tf' (provider: AWS/Local) and 'variables.tf'.`,
+
+  "vector": `
+    - **Deps:** Install pinecone-client or chroma-db client.
+    - **Env:** Add VECTOR_DB_API_KEY to .env.example.`,
 
   // --- Tool Rules ---
   "prisma": `
@@ -178,6 +196,13 @@ export async function POST(req: Request) {
       }
     });
     
+    // Manual Triggers for Advanced Features
+    if (cleanPrompt.includes("graphql")) specificRules += `\n### RULE FOR GRAPHQL:${TECH_RULES["graphql"]}`;
+    if (cleanPrompt.includes("swagger")) specificRules += `\n### RULE FOR SWAGGER:${TECH_RULES["swagger"]}`;
+    if (cleanPrompt.includes("worker")) specificRules += `\n### RULE FOR WORKER:${TECH_RULES["worker"]}`;
+    if (cleanPrompt.includes("terraform")) specificRules += `\n### RULE FOR TERRAFORM:${TECH_RULES["terraform"]}`;
+    if (cleanPrompt.includes("vector")) specificRules += `\n### RULE FOR VECTOR_DB:${TECH_RULES["vector"]}`;
+
     if (cleanPrompt.includes("node") || cleanPrompt.includes("typescript") || cleanPrompt.includes("express") || cleanPrompt.includes("nest")) {
        specificRules += `\n### RULE FOR TYPESCRIPT:${TECH_RULES["typescript"]}`;
        specificRules += `\n### RULE FOR NODE:${TECH_RULES["node"]}`;
@@ -218,7 +243,9 @@ export async function POST(req: Request) {
              - Welcomes user.
              - Asks for env vars & writes to .env.
              - **Auto-Install:** Asks "Install dependencies? (y/n)". If 'y', runs install command (npm install / pip install / dotnet restore) in try-catch.
+             - **Auto-Git (NEW):** Asks "Initialize Git repository? (y/n)". If 'y', runs 'git init' and 'git add .'.
              - Prints success message.
+             
           4. **package.json:** ALWAYS create this file to run the setup script:
              - "scripts": { "setup": "node scripts/setup.js" }
 

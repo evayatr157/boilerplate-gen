@@ -39,93 +39,100 @@ const TECH_CONFIG: Record<string, { frameworks: string[]; databases: string[] }>
   }
 };
 
-// --- 2. התאמת כלי עזר (Auth & Testing) לשפה ---
+// --- 2. התאמת כלי עזר ---
 const COMPATIBLE_TOOLS: Record<string, { auth: string[]; testing: string[] }> = {
-  "Node.js (TypeScript)": {
-    auth: ["None", "JWT (Custom)", "Clerk", "Auth0", "Passport.js"],
-    testing: ["None", "Jest", "Vitest", "Mocha"]
-  },
-  "Python": {
-    auth: ["None", "JWT (Custom)", "Auth0", "FastAPI Users"],
-    testing: ["None", "PyTest", "Unittest"]
-  },
-  "Go (Golang)": {
-    auth: ["None", "JWT (Custom)", "Auth0"],
-    testing: ["None", "Go Test", "Testify"]
-  },
-  "Java": {
-    auth: ["None", "Spring Security", "Auth0"],
-    testing: ["None", "JUnit", "TestNG"]
-  },
-  "C# (.NET)": {
-    auth: ["None", "ASP.NET Identity", "Auth0"],
-    testing: ["None", "xUnit", "NUnit", "MSTest"]
-  },
-  "Rust": {
-    auth: ["None", "JWT", "Auth0"],
-    testing: ["None", "Cargo Test"]
-  },
-  "PHP": {
-    auth: ["None", "Laravel Sanctum", "JWT"],
-    testing: ["None", "PHPUnit", "Pest"]
-  },
-  "Ruby": {
-    auth: ["None", "Devise", "JWT"],
-    testing: ["None", "RSpec", "Minitest"]
-  }
+  "Node.js (TypeScript)": { auth: ["None", "JWT", "Clerk", "Auth0"], testing: ["None", "Jest", "Vitest"] },
+  "Python": { auth: ["None", "JWT", "Auth0"], testing: ["None", "PyTest", "Unittest"] },
+  "Go (Golang)": { auth: ["None", "JWT", "Auth0"], testing: ["None", "Go Test"] },
+  "Java": { auth: ["None", "Spring Security"], testing: ["None", "JUnit"] },
+  "C# (.NET)": { auth: ["None", "Identity"], testing: ["None", "xUnit"] },
+  "Rust": { auth: ["None", "JWT"], testing: ["None", "Cargo Test"] },
+  "PHP": { auth: ["None", "Sanctum"], testing: ["None", "PHPUnit"] },
+  "Ruby": { auth: ["None", "Devise"], testing: ["None", "RSpec"] }
 };
+
+const API_STYLES = ["REST", "GraphQL", "gRPC", "WebSocket"];
+const LOADING_MESSAGES = ["🧠 Analyzing requirements...", "🏗️ Scaffolding architecture...", "🐳 Configuring Docker...", "🔧 Setting up CI/CD...", "📦 Finalizing package..."];
 
 export default function Home() {
   const defaultLang = "Node.js (TypeScript)";
   
+  // Basic State
   const [language, setLanguage] = useState(defaultLang);
   const [framework, setFramework] = useState(TECH_CONFIG[defaultLang].frameworks[0]);
   const [db, setDb] = useState(TECH_CONFIG[defaultLang].databases[0]);
   
+  // Advanced State
   const [showAdvanced, setShowAdvanced] = useState(false);
-  // אתחול דינמי גם לכלים המתקדמים
-  const [auth, setAuth] = useState(COMPATIBLE_TOOLS[defaultLang].auth[0]);
-  const [testing, setTesting] = useState(COMPATIBLE_TOOLS[defaultLang].testing[0]);
+  const [auth, setAuth] = useState("None");
+  const [testing, setTesting] = useState("None");
   
+  // New Advanced Features
+  const [apiStyle, setApiStyle] = useState("REST");
   const [docker, setDocker] = useState(false);
   const [ciCd, setCiCd] = useState(false);
+  const [swagger, setSwagger] = useState(false);
+  const [worker, setWorker] = useState(false);
+  const [terraform, setTerraform] = useState(false);
+  const [vectorDb, setVectorDb] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
 
-  // עדכון אוטומטי של כל השדות כשמחליפים שפה
   useEffect(() => {
     const config = TECH_CONFIG[language];
-    const tools = COMPATIBLE_TOOLS[language];
-    
+    const tools = COMPATIBLE_TOOLS[language] || COMPATIBLE_TOOLS["Node.js (TypeScript)"];
     setFramework(config.frameworks[0]);
     setDb(config.databases[0]);
     setAuth(tools.auth[0]);
     setTesting(tools.testing[0]);
   }, [language]);
 
+  // Loading Animation
+  useEffect(() => {
+    if (!loading) return;
+    setStatus(LOADING_MESSAGES[0]);
+    let msgIndex = 0;
+    const interval = setInterval(() => {
+      msgIndex = (msgIndex + 1) % LOADING_MESSAGES.length;
+      setStatus(LOADING_MESSAGES[msgIndex]);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [loading]);
+
   const handleGenerate = async () => {
     setLoading(true);
-    setStatus("Architecting solution...");
 
-    let prompt = `Language: ${language}, Framework: ${framework}, Database: ${db}`;
+    // בניית הפרומפט העשיר
+    let prompt = `Language: ${language}, Framework: ${framework}, Database: ${db}, API Style: ${apiStyle}`;
     if (auth !== "None") prompt += `, Authentication: ${auth}`;
     if (testing !== "None") prompt += `, Testing: ${testing}`;
+    
+    // תוספות
     if (docker) prompt += `, Include Dockerfile & docker-compose`;
-    if (ciCd) prompt += `, Include GitHub Actions CI/CD workflow`;
+    if (ciCd) prompt += `, Include GitHub Actions CI/CD`;
+    if (swagger) prompt += `, Include Swagger/OpenAPI documentation`;
+    if (worker) prompt += `, Include Background Worker (Redis)`;
+    if (terraform) prompt += `, Include Terraform IaC scripts`;
+    if (vectorDb) prompt += `, Include Vector DB setup (Pinecone/Chroma)`;
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min timeout
+
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
 
       if (data.url) {
-        setStatus(data.cached ? "Cache HIT! ⚡ Instant Download" : "Generated by AI! 🤖 Downloading...");
+        setStatus(data.cached ? "⚡ Cache HIT!" : "✅ Done!");
         const a = document.createElement("a");
         a.href = data.url;
         a.download = `boilerplate-${framework.toLowerCase().replace(/ /g, "-")}.zip`;
@@ -133,9 +140,10 @@ export default function Home() {
         a.click();
         a.remove();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("Something went wrong. Please try again.");
+      if (error.name === 'AbortError') alert("Request timed out. Try generating a smaller project.");
+      else alert(error.message || "Something went wrong.");
     } finally {
       setLoading(false);
       setTimeout(() => setStatus(""), 4000);
@@ -144,7 +152,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans relative">
-      {/* Navbar */}
       <nav className="w-full flex justify-between items-center p-6 px-8 max-w-7xl mx-auto">
          <div className="text-xl font-bold text-slate-800 flex items-center gap-2">
             <span className="text-2xl">🏗️</span> Code Architect
@@ -170,7 +177,7 @@ export default function Home() {
             Generate Production-Ready <br/> <span className="text-blue-600">Backend Boilerplates</span>
           </h1>
           <p className="text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            Stop configuring. Start coding. Get Docker, Auth, and CI/CD in seconds.
+            Stop configuring. Start coding. Get Docker, Auth, and Cloud Infra in seconds.
           </p>
         </div>
 
@@ -183,69 +190,78 @@ export default function Home() {
           </div>
 
           <div className="p-8 space-y-8">
-            {/* Core Selections */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Language</label>
-                <select 
-                  value={language} onChange={(e) => setLanguage(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                >
+                <select value={language} onChange={(e) => setLanguage(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg outline-none">
                   {Object.keys(TECH_CONFIG).map((lang) => <option key={lang} value={lang}>{lang}</option>)}
                 </select>
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Framework</label>
-                <select 
-                  value={framework} onChange={(e) => setFramework(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                >
+                <select value={framework} onChange={(e) => setFramework(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg outline-none">
                   {TECH_CONFIG[language].frameworks.map((fm) => <option key={fm} value={fm}>{fm}</option>)}
                 </select>
               </div>
-              <div className="space-y-2 md:col-span-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Database & ORM</label>
-                <select 
-                  value={db} onChange={(e) => setDb(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                >
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">API Style</label>
+                <select value={apiStyle} onChange={(e) => setApiStyle(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg outline-none">
+                  {API_STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Database</label>
+                <select value={db} onChange={(e) => setDb(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg outline-none">
                   {TECH_CONFIG[language].databases.map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
             </div>
 
-            {/* Advanced Settings */}
             <div className="border-t border-slate-100 pt-4">
-              <button 
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className="flex items-center text-blue-600 font-semibold hover:text-blue-800 transition-colors text-sm"
-              >
+              <button onClick={() => setShowAdvanced(!showAdvanced)} className="flex items-center text-blue-600 font-semibold hover:text-blue-800 text-sm">
                 {showAdvanced ? "🔽 Hide Advanced Settings" : "▶ Show Advanced Settings"}
               </button>
 
               {showAdvanced && (
-                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 bg-blue-50 p-6 rounded-xl animate-in fade-in slide-in-from-top-4 duration-300 border border-blue-100">
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 bg-blue-50 p-6 rounded-xl animate-in fade-in slide-in-from-top-4 border border-blue-100">
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-blue-800 uppercase tracking-wider">Authentication</label>
-                    <select value={auth} onChange={(e) => setAuth(e.target.value)} className="w-full p-2 bg-white border border-blue-200 rounded text-sm">
-                      {/* שימוש ברשימה הדינמית במקום הגנרית */}
-                      {COMPATIBLE_TOOLS[language]?.auth.map(o => <option key={o} value={o}>{o}</option>)}
+                    <label className="text-xs font-bold text-blue-800 uppercase">Authentication</label>
+                    <select value={auth} onChange={(e) => setAuth(e.target.value)} className="w-full p-2 bg-white border rounded text-sm">
+                      {(COMPATIBLE_TOOLS[language]?.auth || ["None"]).map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-blue-800 uppercase tracking-wider">Testing</label>
-                    <select value={testing} onChange={(e) => setTesting(e.target.value)} className="w-full p-2 bg-white border border-blue-200 rounded text-sm">
-                      {/* שימוש ברשימה הדינמית */}
-                      {COMPATIBLE_TOOLS[language]?.testing.map(o => <option key={o} value={o}>{o}</option>)}
+                    <label className="text-xs font-bold text-blue-800 uppercase">Testing</label>
+                    <select value={testing} onChange={(e) => setTesting(e.target.value)} className="w-full p-2 bg-white border rounded text-sm">
+                      {(COMPATIBLE_TOOLS[language]?.testing || ["None"]).map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
-                  <div className="flex items-center space-x-3 bg-white p-3 rounded border border-blue-100">
-                    <input type="checkbox" id="docker" checked={docker} onChange={(e) => setDocker(e.target.checked)} className="w-5 h-5 text-blue-600 rounded"/>
-                    <label htmlFor="docker" className="text-sm font-medium text-slate-700">🐳 Include Docker</label>
-                  </div>
-                  <div className="flex items-center space-x-3 bg-white p-3 rounded border border-blue-100">
-                    <input type="checkbox" id="cicd" checked={ciCd} onChange={(e) => setCiCd(e.target.checked)} className="w-5 h-5 text-blue-600 rounded"/>
-                    <label htmlFor="cicd" className="text-sm font-medium text-slate-700">🤖 GitHub Actions</label>
+                  
+                  <div className="col-span-1 md:col-span-2 grid grid-cols-2 gap-4 mt-2">
+                    <div className="flex items-center space-x-2">
+                        <input type="checkbox" checked={docker} onChange={(e) => setDocker(e.target.checked)} className="w-4 h-4 text-blue-600"/>
+                        <label className="text-sm font-medium text-slate-700">🐳 Docker</label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <input type="checkbox" checked={ciCd} onChange={(e) => setCiCd(e.target.checked)} className="w-4 h-4 text-blue-600"/>
+                        <label className="text-sm font-medium text-slate-700">🤖 CI/CD (GitHub)</label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <input type="checkbox" checked={swagger} onChange={(e) => setSwagger(e.target.checked)} className="w-4 h-4 text-blue-600"/>
+                        <label className="text-sm font-medium text-slate-700">📜 Swagger / OpenAPI</label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <input type="checkbox" checked={worker} onChange={(e) => setWorker(e.target.checked)} className="w-4 h-4 text-blue-600"/>
+                        <label className="text-sm font-medium text-slate-700">⚙️ Background Worker</label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <input type="checkbox" checked={terraform} onChange={(e) => setTerraform(e.target.checked)} className="w-4 h-4 text-blue-600"/>
+                        <label className="text-sm font-medium text-slate-700">☁️ Terraform</label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <input type="checkbox" checked={vectorDb} onChange={(e) => setVectorDb(e.target.checked)} className="w-4 h-4 text-blue-600"/>
+                        <label className="text-sm font-medium text-slate-700">🧠 Vector DB (AI)</label>
+                    </div>
                   </div>
                 </div>
               )}
@@ -258,18 +274,16 @@ export default function Home() {
                 loading ? "bg-slate-400 cursor-not-allowed" : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:shadow-blue-500/30"
               }`}
             >
-              {loading ? "Architecting Solution..." : "Generate Boilerplate 🚀"}
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="animate-spin">⏳</span> {status}
+                </span>
+              ) : "Generate Boilerplate 🚀"}
             </button>
-
-            {status && (
-              <div className="text-center p-4 rounded-lg border text-sm font-mono font-medium bg-indigo-50 border-indigo-200 text-indigo-700">
-                {`> ${status}`}
-              </div>
-            )}
           </div>
         </div>
         <div className="mt-10 text-slate-400 text-sm">© {new Date().getFullYear()} Evyatar Shveka</div>
-          </div>
+      </div>
     </div>
   );
 }
