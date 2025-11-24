@@ -56,11 +56,11 @@ const TECH_RULES: Record<string, string> = {
 
     "java": `
     - **Structure:** src/main/java.
-    - **Config:** Include 'pom.xml'.
-    - **Docker (CRITICAL):** Use MULTI-STAGE build to avoid local dependency.
+    - **Config:** Include 'pom.xml' with <finalName>app</finalName> in <build>.
+    - **Docker (CRITICAL):** Use MULTI-STAGE build.
       1. Stage 1: FROM maven:3.9-eclipse-temurin-17 AS build -> COPY . . -> RUN mvn clean package -DskipTests
-      2. Stage 2: FROM eclipse-temurin:17-jdk-jammy -> COPY --from=build /app/target/*.jar app.jar -> ENTRYPOINT ["java","-jar","/app.jar"]`,
-
+      2. Stage 2: FROM eclipse-temurin:17-jdk-jammy -> COPY --from=build /app/target/app.jar app.jar -> ENTRYPOINT ["java","-jar","/app.jar"]`,
+      
     "go": `
     - **SPEED (CRITICAL):** Generate ONLY 'main.go' and 'go.mod'.
     - **Docker:** Use 'FROM golang:1.21-alpine'.
