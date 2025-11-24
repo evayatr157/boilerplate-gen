@@ -268,8 +268,8 @@ export default function Home() {
             )}
           </div>
         </div>
-        <div className="mt-10 text-slate-400 text-sm">© 2025 Evyatar Shveka</div>
-      </div>
+        <div className="mt-10 text-slate-400 text-sm">© {new Date().getFullYear()} Evyatar Shveka</div>
+          </div>
     </div>
   );
 }
