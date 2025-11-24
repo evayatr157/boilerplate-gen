@@ -53,13 +53,6 @@ const COMPATIBLE_TOOLS: Record<string, { auth: string[]; testing: string[] }> = 
 
 const API_STYLES = ["REST", "GraphQL", "gRPC", "WebSocket"];
 const LOADING_MESSAGES = ["🧠 Analyzing requirements...", "🏗️ Scaffolding architecture...", "🐳 Configuring Docker...", "🔧 Setting up CI/CD...", "📦 Finalizing package..."];
-const [downloadCount, setDownloadCount] = useState<number | null>(null);
-useEffect(() => {
-  fetch("/api/stats")
-    .then(res => res.json())
-    .then(data => setDownloadCount(data.count))
-    .catch(err => console.error("Failed to fetch stats", err));
-}, []);
 
 export default function Home() {
   const defaultLang = "Node.js (TypeScript)";
@@ -83,9 +76,20 @@ export default function Home() {
   const [terraform, setTerraform] = useState(false);
   const [vectorDb, setVectorDb] = useState(false);
 
+  // Status State
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
+  const [downloadCount, setDownloadCount] = useState<number | null>(null);
 
+  // Fetch Stats on Load
+  useEffect(() => {
+    fetch("/api/stats")
+      .then(res => res.json())
+      .then(data => setDownloadCount(data.count))
+      .catch(err => console.error("Failed to fetch stats", err));
+  }, []);
+
+  // Update dependencies on language change
   useEffect(() => {
     const config = TECH_CONFIG[language];
     const tools = COMPATIBLE_TOOLS[language] || COMPATIBLE_TOOLS["Node.js (TypeScript)"];
@@ -110,12 +114,10 @@ export default function Home() {
   const handleGenerate = async () => {
     setLoading(true);
 
-    // בניית הפרומפט העשיר
     let prompt = `Language: ${language}, Framework: ${framework}, Database: ${db}, API Style: ${apiStyle}`;
     if (auth !== "None") prompt += `, Authentication: ${auth}`;
     if (testing !== "None") prompt += `, Testing: ${testing}`;
     
-    // תוספות
     if (docker) prompt += `, Include Dockerfile & docker-compose`;
     if (ciCd) prompt += `, Include GitHub Actions CI/CD`;
     if (swagger) prompt += `, Include Swagger/OpenAPI documentation`;
@@ -125,7 +127,7 @@ export default function Home() {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min timeout
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
 
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -179,24 +181,24 @@ export default function Home() {
       </nav>
 
       <div className="py-8 px-4 flex flex-col items-center">
-      <div className="text-center mb-10 space-y-3">
-  <h1 className="text-5xl font-extrabold text-slate-800 tracking-tight">
-    Generate Production-Ready <br/> <span className="text-blue-600">Backend Boilerplates</span>
-  </h1>
+        <div className="text-center mb-10 space-y-3">
+          <h1 className="text-5xl font-extrabold text-slate-800 tracking-tight">
+            Generate Production-Ready <br/> <span className="text-blue-600">Backend Boilerplates</span>
+          </h1>
 
-  {/* --- המונה החדש --- */}
-  {downloadCount !== null && (
-    <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-1 rounded-full text-sm font-medium border border-blue-100 shadow-sm animate-fade-in">
-      <span className="relative flex h-2 w-2">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-        <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-      </span>
-      {downloadCount.toLocaleString()} Projects Generated
-    </div>
-  )}
+          {/* --- המונה החדש --- */}
+          {downloadCount !== null && (
+            <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-1 rounded-full text-sm font-medium border border-blue-100 shadow-sm animate-fade-in">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+              </span>
+              {downloadCount.toLocaleString()} Projects Generated
+            </div>
+          )}
 
-  <p className="text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-    Stop configuring. Start coding Get Docker, Auth, and Cloud Infra in seconds.
+          <p className="text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
+            Stop configuring. Start coding. Get Docker, Auth, and Cloud Infra in seconds.
           </p>
         </div>
 
