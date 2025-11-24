@@ -57,11 +57,13 @@ const TECH_RULES: Record<string, string> = {
     "java": `
     - **Structure:** src/main/java.
     - **Config:** Include 'pom.xml'.
+    - **Spring Boot (CRITICAL):** If using Spring Boot, YOU MUST include the <parent> section for 'spring-boot-starter-parent' (version 3.x) in pom.xml.
+    - **Build Name:** Add <finalName>app</finalName> inside <build> section of pom.xml.
     - **Env Vars:** Use standard naming (e.g. 'SPRING_DATASOURCE_URL'), NO spaces.
     - **Docker (CRITICAL):** Use MULTI-STAGE build.
       1. Stage 1: FROM maven:3.9-eclipse-temurin-17 AS build -> COPY . . -> RUN mvn clean package -DskipTests
       2. Stage 2: FROM eclipse-temurin:17-jdk-jammy -> COPY --from=build /app/target/app.jar app.jar -> ENTRYPOINT ["java","-jar","/app.jar"]`,
-
+      
     "go": `
     - **SPEED (CRITICAL):** Generate ONLY 'main.go' and 'go.mod'.
     - **Docker:** Use 'FROM golang:1.21-alpine'.
@@ -259,7 +261,7 @@ export async function POST(req: Request) {
              - **Auto-Install:** Asks "Install dependencies? (y/n)". If 'y', runs install command (npm install / pip install / dotnet restore) in try-catch.
              - **Auto-Git (NEW):** Asks "Initialize Git repository? (y/n)". If 'y', runs 'git init' and 'git add .'.
              - Prints success message.
-             
+
           4. **package.json:** ALWAYS create this file to run the setup script:
              - "scripts": { "setup": "node scripts/setup.js" }
 
