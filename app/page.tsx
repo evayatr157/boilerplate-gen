@@ -79,9 +79,10 @@ export default function Home() {
   // Status State
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
+  
+  // --- התיקון: ה-State וה-Effect חייבים להיות בתוך הפונקציה ---
   const [downloadCount, setDownloadCount] = useState<number | null>(null);
 
-  // Fetch Stats on Load
   useEffect(() => {
     fetch("/api/stats")
       .then(res => res.json())
@@ -127,7 +128,7 @@ export default function Home() {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000);
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min timeout
 
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -186,14 +187,14 @@ export default function Home() {
             Generate Production-Ready <br/> <span className="text-blue-600">Backend Boilerplates</span>
           </h1>
 
-          {/* --- המונה החדש --- */}
+          {/* --- המונה החדש והמתוקן --- */}
           {downloadCount !== null && (
             <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-1 rounded-full text-sm font-medium border border-blue-100 shadow-sm animate-fade-in">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
               </span>
-              {downloadCount.toLocaleString()} Projects Generated
+              {downloadCount.toLocaleString()} Projects Generated so far
             </div>
           )}
 
