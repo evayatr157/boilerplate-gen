@@ -51,13 +51,13 @@ const TECH_RULES: Record<string, string> = {
     
     "c#": `
     - **Structure:** Solution (.sln) in root, Project (.csproj) in 'src/'.
-    - **Code Style (CRITICAL):** ALWAYS include 'using System;' and 'using System.Collections.Generic;' in ALL C# files.
-    - **Style:** Use standard .NET 6+ style (Program.cs with builder), no Startup.cs.
+    - **CSPROJ (CRITICAL):** The .csproj file MUST use <Project Sdk="Microsoft.NET.Sdk.Web"> and include <ImplicitUsings>enable</ImplicitUsings>. Also add <AssemblyName>app</AssemblyName> inside <PropertyGroup>.
+    - **Code Style:** Use standard .NET 6+ style (Program.cs with builder).
     - **Docker (CRITICAL):**
       1. Use 'mcr.microsoft.com/dotnet/sdk:6.0' for build.
       2. Use 'mcr.microsoft.com/dotnet/aspnet:6.0' for runtime.
-      3. ENTRYPOINT: Use wildcard to find DLL: ENTRYPOINT ["sh", "-c", "dotnet *.dll"] inside the /app folder.`,
-
+      3. ENTRYPOINT ["dotnet", "app.dll"] (The assembly name is forced to 'app').`,
+      
     "java": `
     - **Structure:** src/main/java.
     - **Config (CRITICAL):** In 'pom.xml', YOU MUST include <parent> section for 'spring-boot-starter-parent' version '3.2.0'.
