@@ -56,9 +56,8 @@ const TECH_RULES: Record<string, string> = {
 
     "java": `
     - **Structure:** src/main/java.
-    - **Config:** Include 'pom.xml'.
-    - **Spring Boot (CRITICAL):** If using Spring Boot, YOU MUST include the <parent> section for 'spring-boot-starter-parent' (version 3.x) in pom.xml.
-    - **Build Name:** Add <finalName>app</finalName> inside <build> section of pom.xml.
+    - **Config (CRITICAL):** In 'pom.xml', YOU MUST include <parent> section for 'spring-boot-starter-parent' with version '3.2.0' (EXACT VERSION, do NOT use '3.x').
+    - **Build Name:** Add <finalName>app</finalName> inside <build> section.
     - **Env Vars:** Use standard naming (e.g. 'SPRING_DATASOURCE_URL'), NO spaces.
     - **Docker (CRITICAL):** Use MULTI-STAGE build.
       1. Stage 1: FROM maven:3.9-eclipse-temurin-17 AS build -> COPY . . -> RUN mvn clean package -DskipTests
