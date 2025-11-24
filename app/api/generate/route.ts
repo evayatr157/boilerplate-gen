@@ -57,11 +57,11 @@ const TECH_RULES: Record<string, string> = {
     "java": `
     - **Structure:** src/main/java.
     - **Config (CRITICAL):** In 'pom.xml', YOU MUST include <parent> section for 'spring-boot-starter-parent' version '3.2.0'.
-    - **Build Name:** Add <finalName>app</finalName> inside <build> section.
-    - **Env Vars:** Use standard naming (e.g. 'SPRING_DATASOURCE_URL'), NO spaces.
-    - **Docker (CRITICAL):** Use MULTI-STAGE build.
-      1. Stage 1: FROM maven:3.9-eclipse-temurin-17 AS build -> COPY . . -> RUN mvn clean package -DskipTests
-      2. Stage 2: FROM eclipse-temurin:17-jdk-jammy -> COPY --from=build /app/target/*.jar app.jar -> ENTRYPOINT ["java","-jar","/app.jar"]`,
+    - **Build Name:** Add <finalName>app</finalName> inside <build> section of pom.xml.
+    - **Env Vars:** Use standard naming (e.g. 'SPRING_DATASOURCE_URL'), NO spaces in keys.
+    - **Docker (CRITICAL):** Use MULTI-STAGE build with WORKDIR.
+      1. Stage 1: FROM maven:3.9-eclipse-temurin-17 AS build -> WORKDIR /app -> COPY . . -> RUN mvn clean package -DskipTests
+      2. Stage 2: FROM eclipse-temurin:17-jdk-jammy -> WORKDIR /app -> COPY --from=build /app/target/app.jar app.jar -> ENTRYPOINT ["java","-jar","app.jar"]`,
       
     "go": `
     - **SPEED (CRITICAL):** Generate ONLY 'main.go' and 'go.mod'.
