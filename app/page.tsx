@@ -4,8 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { SignedIn, SignedOut, SignInButton, UserButton, useClerk, useUser } from "@clerk/nextjs";
 import { useSearchParams } from 'next/navigation';
 
-// ... (כל הקבועים TECH_CONFIG, COMPATIBLE_TOOLS נשארים זהים - חסכתי מקום כאן) ...
-// --- תעתיק את הקבועים TECH_CONFIG ו-COMPATIBLE_TOOLS מהגרסה הקודמת ---
+// --- 1. הגדרות טכנולוגיה בסיסיות ---
 const TECH_CONFIG: Record<string, { frameworks: string[]; databases: string[] }> = {
   "Node.js (TypeScript)": {
     frameworks: ["Express", "NestJS", "Fastify", "Next.js (App Router)"],
@@ -41,6 +40,7 @@ const TECH_CONFIG: Record<string, { frameworks: string[]; databases: string[] }>
   }
 };
 
+// --- 2. התאמת כלי עזר ---
 const COMPATIBLE_TOOLS: Record<string, { auth: string[]; testing: string[] }> = {
   "Node.js (TypeScript)": { auth: ["None", "JWT", "Clerk", "Auth0"], testing: ["None", "Jest", "Vitest"] },
   "Python": { auth: ["None", "JWT", "Auth0"], testing: ["None", "PyTest", "Unittest"] },
@@ -55,10 +55,11 @@ const COMPATIBLE_TOOLS: Record<string, { auth: string[]; testing: string[] }> = 
 const API_STYLES = ["REST", "GraphQL", "gRPC", "WebSocket"];
 const LOADING_MESSAGES = ["🧠 Analyzing requirements...", "🏗️ Scaffolding architecture...", "🐳 Configuring Docker...", "🔧 Setting up CI/CD...", "📦 Finalizing package..."];
 
-
+// --- קומפוננטת התוכן הפנימית ---
 function GeneratorContent() {
   const defaultLang = "Node.js (TypeScript)";
   
+  // Hooks
   const { openSignIn } = useClerk();
   const { isSignedIn, user } = useUser();
   const searchParams = useSearchParams();
@@ -80,10 +81,11 @@ function GeneratorContent() {
 
   // Status State
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false); // <-- סטייט חדש להצלחה
+  const [success, setSuccess] = useState(false);
   const [status, setStatus] = useState("");
   const [downloadCount, setDownloadCount] = useState<number | null>(null);
 
+  // Stats Logic
   const refreshStats = () => {
     fetch("/api/stats")
       .then(res => res.json())
@@ -114,6 +116,7 @@ function GeneratorContent() {
     setLanguage(newLang);
     const config = TECH_CONFIG[newLang];
     const tools = COMPATIBLE_TOOLS[newLang] || COMPATIBLE_TOOLS["Node.js (TypeScript)"];
+    
     setFramework(config.frameworks[0]);
     setDb(config.databases[0]);
     setAuth(tools.auth[0]);
@@ -139,11 +142,12 @@ function GeneratorContent() {
     }
 
     setLoading(true);
-    setSuccess(false); // איפוס לפני התחלה
+    setSuccess(false);
 
     let prompt = `Language: ${language}, Framework: ${framework}, Database: ${db}, API Style: ${apiStyle}`;
     if (auth !== "None") prompt += `, Authentication: ${auth}`;
     if (testing !== "None") prompt += `, Testing: ${testing}`;
+    
     if (docker) prompt += `, Include Dockerfile & docker-compose`;
     if (ciCd) prompt += `, Include GitHub Actions CI/CD`;
     if (swagger) prompt += `, Include Swagger/OpenAPI documentation`;
@@ -152,9 +156,8 @@ function GeneratorContent() {
     if (vectorDb) prompt += `, Include Vector DB setup (Pinecone/Chroma)`;
 
     try {
-      // --- Fake Delay for Video (DELETE LATER) ---
-      await new Promise(resolve => setTimeout(resolve, 4000));
-      // -------------------------------------------
+      // NOTE: Remove this delay for production unless you want to fake the speed.
+      // await new Promise(resolve => setTimeout(resolve, 4000)); 
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000);
@@ -171,9 +174,8 @@ function GeneratorContent() {
       if (!response.ok) throw new Error(data.error);
 
       if (data.url) {
-        // הצלחה!
-        setSuccess(true); // הפעלת מצב הצלחה
-        setLoading(false); // הפסקת טעינה מיד
+        setSuccess(true);
+        setLoading(false); 
         
         setDownloadCount((prev) => (prev !== null ? prev + 1 : 1));
         refreshStats();
@@ -185,11 +187,9 @@ function GeneratorContent() {
         a.click();
         a.remove();
 
-        // איפוס הכפתור אחרי 3 שניות
         setTimeout(() => setSuccess(false), 3000);
       }
     } catch (error: any) {
-      console.error(error);
       setLoading(false);
       alert("Something went wrong. Please try again.");
     }
@@ -227,28 +227,24 @@ function GeneratorContent() {
 
         <div className="p-8 space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Language Selector */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Language</label>
               <select value={language} onChange={(e) => handleLanguageChange(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg outline-none">
                 {Object.keys(TECH_CONFIG).map((lang) => <option key={lang} value={lang}>{lang}</option>)}
               </select>
             </div>
-            {/* Framework Selector */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Framework</label>
               <select value={framework} onChange={(e) => setFramework(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg outline-none">
                 {TECH_CONFIG[language].frameworks.map((fm) => <option key={fm} value={fm}>{fm}</option>)}
               </select>
             </div>
-            {/* API Style Selector */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">API Style</label>
               <select value={apiStyle} onChange={(e) => setApiStyle(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg outline-none">
                 {API_STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            {/* Database Selector */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Database</label>
               <select value={db} onChange={(e) => setDb(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-300 rounded-lg outline-none">
@@ -257,7 +253,6 @@ function GeneratorContent() {
             </div>
           </div>
 
-          {/* Advanced Settings Toggle */}
           <div className="border-t border-slate-100 pt-4">
             <button onClick={() => setShowAdvanced(!showAdvanced)} className="flex items-center text-blue-600 font-semibold hover:text-blue-800 text-sm">
               {showAdvanced ? "🔽 Hide Advanced Settings" : "▶ Show Advanced Settings"}
@@ -308,16 +303,15 @@ function GeneratorContent() {
             )}
           </div>
 
-          {/* כפתור הפעולה: משתנה לפי המצב (Loading -> Success -> Default) */}
           <button
             onClick={handleGenerate}
             disabled={loading || success}
             className={`w-full py-4 px-6 text-lg font-bold text-white rounded-xl shadow-lg transition-all transform active:scale-[0.98] ${
               success 
-                ? "bg-green-500 hover:bg-green-600 shadow-green-500/30" // ירוק בהצלחה
+                ? "bg-green-500 hover:bg-green-600 shadow-green-500/30"
                 : loading 
-                  ? "bg-slate-400 cursor-not-allowed" // אפור בטעינה
-                  : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:shadow-blue-500/30" // כחול רגיל
+                  ? "bg-slate-400 cursor-not-allowed"
+                  : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:shadow-blue-500/30"
             }`}
           >
             {loading ? (
@@ -332,9 +326,15 @@ function GeneratorContent() {
               "Generate Boilerplate 🚀"
             )}
           </button>
+          
+          {/* הוספת כפתור הפידבק כאן: */}
+          <a href="mailto:code.architect.app@gmail.com?subject=Feedback%20on%20Code%20Architect"
+             className="mt-4 text-sm text-slate-500 hover:text-blue-600 transition underline">
+              Report a Bug / Contact Us
+          </a>
+
         </div>
       </div>
-      <div className="mt-10 text-slate-400 text-sm pb-8">© {new Date().getFullYear()} Evyatar Shveka</div>
     </div>
   );
 }
@@ -364,6 +364,8 @@ export default function HomeWrapper() {
       <Suspense fallback={<div className="text-center py-20 text-slate-500">Loading...</div>}>
         <GeneratorContent />
       </Suspense>
+
+      <div className="text-center mt-10 text-slate-400 text-sm pb-8">© {new Date().getFullYear()} Evyatar Shveka</div>
     </div>
   );
 }
