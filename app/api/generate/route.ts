@@ -270,7 +270,11 @@ export async function POST(req: Request) {
              - "scripts": { "setup": "node scripts/setup.js" }
 
           ### README.md:
-          - Instructions: 1. npm run setup, 2. docker compose up.
+            - Instructions: 
+              1. npm run setup
+              2. Run command: 
+                - IF Docker is used: "docker compose up --build"
+                - IF NO Docker: The appropriate start command for the language (e.g., "npm run build && npm start" for Node, "python src/main.py" for Python, "go run main.go" for Go).
           
           ### EXAMPLE JSON:
           {
