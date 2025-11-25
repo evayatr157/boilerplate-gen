@@ -162,9 +162,11 @@ function GeneratorContent() {
     if (vectorDb) prompt += `, Include Vector DB setup (Pinecone/Chroma)`;
 
     try {
+      await new Promise(resolve => setTimeout(resolve, 4000)); // TODO: remove
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000);
-
+      
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
